@@ -1,0 +1,55 @@
+country,break_year,n_docs,status,error_message,raw_output
+El Salvador,2010,4,ok,,"break_supported: 1
+break_type: financial_crisis, policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Historic recession from global crisis; major fiscal policy response.]"
+El Salvador,2011,2,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: [No textual evidence for a structural break in 2011.]"
+El Salvador,2012,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Documents describe 2008-2009 shock recovery and judicial/environmental reforms]"
+El Salvador,2013,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [No textual evidence for structural break in 2013 documents.]"
+El Salvador,2014,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: [Study on adolescent reproductive health and rights in El Salvador.]"
+El Salvador,2015,1,ok,,"break_supported: 1
+break_type: policy_change, climate_shock
+duration: long_term
+climate_related: 1
+confidence: 3
+summary: [Climate adaptation strategy introduced to address environmental and agricultural issues.]"
+El Salvador,2016,1,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: [Ten-year trade inspection project; customs transparency and valuation reform.]"
+El Salvador,2021,1,ok,,"break_supported: 0
+break_type: external_shock
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: Gender gaps and COVID-19 labor market impacts."
+El Salvador,2022,4,ok,,"break_supported: 1
+break_type: policy_change, external_shock
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: Policy uncertainty and high debt threaten growth prospects."

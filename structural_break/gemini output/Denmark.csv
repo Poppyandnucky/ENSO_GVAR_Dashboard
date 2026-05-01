@@ -1,0 +1,13 @@
+country,break_year,n_docs,status,error_message,raw_output
+Denmark,1998,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: -99
+confidence: 5
+summary: Workshop reviews existing Danish renewable energy incentive experiences."
+Denmark,2010,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 2
+summary: [Standard business regulation report; no specific economic break mentioned.]"

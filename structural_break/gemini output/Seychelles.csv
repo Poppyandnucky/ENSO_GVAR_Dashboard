@@ -1,0 +1,7 @@
+country,break_year,n_docs,status,error_message,raw_output
+Seychelles,2022,4,ok,,"break_supported: 1
+break_type: external_shock
+duration: within 1 year
+climate_related: 0
+confidence: 4
+summary: 2022 GDP growth moderates following Russian invasion of Ukraine."

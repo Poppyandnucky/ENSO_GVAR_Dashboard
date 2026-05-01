@@ -1,0 +1,13 @@
+country,break_year,n_docs,status,error_message,raw_output
+Malta,2008,1,ok,,"break_supported: 1
+break_type: financial_crisis, commodity_or_trade
+duration: within 1 year
+climate_related: 0
+confidence: 4
+summary: Global recession and food crisis impacts documented in 2008 brief."
+Malta,2022,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: [Malta learning poverty brief focused on education and human capital.]"

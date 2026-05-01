@@ -1,0 +1,55 @@
+country,break_year,n_docs,status,error_message,raw_output
+Bulgaria,2005,4,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [EU accession reforms, record foreign investment, labor market improvements]"
+Bulgaria,2006,2,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: reforms, market transformation, record foreign investment, plunging unemployment, private sector growth"
+Bulgaria,2007,3,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: [Administrative reforms in tourism, food, and transport sectors]"
+Bulgaria,2008,4,ok,,"break_supported: 1
+break_type: financial_crisis, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Global recession, food crisis impacts, and EU policy alignment."
+Bulgaria,2009,2,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Global recession and food crisis impacted trade in 2009."
+Bulgaria,2010,4,ok,,"break_supported: 1
+break_type: financial_crisis, policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Mitigating global crisis impacts through institutional and revenue reforms."
+Bulgaria,2011,3,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Railway reform and Development Policy Loan series initiated in 2011]"
+Bulgaria,2012,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: Summaries focus on past reforms and 2012 educational assessments."
+Bulgaria,2022,4,ok,,"break_supported: 1
+break_type: external_shock, commodity_or_trade
+duration: 2 year
+climate_related: 0
+confidence: 5
+summary: Ukraine war, energy prices, and inflation slowed 2022 growth."

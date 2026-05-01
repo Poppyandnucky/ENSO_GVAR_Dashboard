@@ -1,0 +1,67 @@
+country,break_year,n_docs,status,error_message,raw_output
+Kenya,2012,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: [Economic tipping point, policy reforms, infrastructure, sustained growth]"
+Kenya,2013,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [No macro-level structural break evidence; documents describe sectoral restructuring.]"
+Kenya,2014,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: -99
+confidence: 5
+summary: No textual evidence for a structural break in 2014."
+Kenya,2016,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 4
+summary: [Documents describe decadal growth trends and ongoing policy implementation.]"
+Kenya,2017,4,ok,,"break_supported: 0
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 1
+confidence: 5
+summary: Documents describe initiatives implemented in 2014 and 2015."
+Kenya,2018,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: No evidence of structural break in provided World Bank documents."
+Kenya,2019,3,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 2
+summary: [No evidence for structural break in 2019 provided]"
+Kenya,2020,3,ok,,"break_supported: 1
+break_type: external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: COVID-19 external shock caused lasting income and consumption declines."
+Kenya,2021,4,ok,,"break_supported: 1
+break_type: external_shock, commodity_or_trade
+duration: 2 year
+climate_related: 0
+confidence: 5
+summary: COVID-19 lockdowns, trade restrictions, and food insecurity impacted Kenya."
+Kenya,2022,4,ok,,"break_supported: 1
+break_type: external_shock, climate_shock
+duration: long_term
+climate_related: 1
+confidence: 4
+summary: Economic recovery, prolonged drought, fiscal consolidation, and health financing transition."
+Kenya,2023,4,ok,,"break_supported: 1
+break_type: policy_change, climate_shock
+duration: long_term
+climate_related: 1
+confidence: 4
+summary: Multiple shocks, prolonged drought, fiscal consolidation, and structural reforms."

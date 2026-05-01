@@ -1,0 +1,73 @@
+country,break_year,n_docs,status,error_message,raw_output
+India,2000,4,ok,,"break_supported: 1
+break_type: policy_change, financial_crisis
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Policy reforms, bond market development, and deregulation initiatives."
+India,2001,4,ok,,"break_supported: -99
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: [IT liberalization and energy reforms; macro break not explicitly stated.]"
+India,2002,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Focuses on ICT initiatives and agricultural technology deregulation research."
+India,2007,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Jump in innovation activities and power sector privatization reforms.]"
+India,2008,4,ok,,"break_supported: 1
+break_type: financial_crisis, commodity_or_trade
+duration: long_term
+climate_related: 1
+confidence: 5
+summary: Global recession and food crisis impacts trade and agriculture."
+India,2009,4,ok,,"break_supported: 1
+break_type: financial_crisis, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Global recession and food crisis impacted trade and growth."
+India,2010,4,ok,,"break_supported: -99
+break_type: policy_change, climate_shock
+duration: long_term
+climate_related: 1
+confidence: 2
+summary: State reforms, employment challenges, and drought adaptation strategies."
+India,2011,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Analysis of poverty, social exclusion, and urban-rural growth."
+India,2012,4,ok,,"break_supported: 1
+break_type: financial_crisis, policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Electricity sector financial crisis and Right to Education Act."
+India,2019,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: [Regional policy and nutrition studies; no national 2019 break evidence.]"
+India,2020,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Documents describe ongoing rural development and livelihood programs, no break."
+India,2021,4,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Documents describe rural development strategies and land rights awareness."

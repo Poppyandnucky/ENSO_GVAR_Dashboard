@@ -1,0 +1,19 @@
+country,break_year,n_docs,status,error_message,raw_output
+Austria,2008,1,ok,,"break_supported: 1
+break_type: financial_crisis, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Austrian response to global recession and food crisis."
+Austria,2009,1,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: global recession and food crisis impacts on trade performance."
+Austria,2013,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 2
+summary: Factsheet on macro-fiscal indicators; no specific events mentioned."

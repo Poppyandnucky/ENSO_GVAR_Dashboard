@@ -1,0 +1,19 @@
+country,break_year,n_docs,status,error_message,raw_output
+Samoa,2016,1,ok,,"break_supported: 1
+break_type: policy_change, climate_shock
+duration: long_term
+climate_related: 1
+confidence: 4
+summary: Recovery plan, Pacific Resilience Program launch, financial capacity strengthening."
+Samoa,2022,3,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: [Macroeconomic stability monitoring and health-related tax policy changes.]"
+Samoa,2023,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: -99
+confidence: 1
+summary: Document summary is empty; no evidence of structural break."

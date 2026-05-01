@@ -1,0 +1,37 @@
+country,break_year,n_docs,status,error_message,raw_output
+Botswana,2011,3,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 2
+summary: Documents discuss health and nutrition; no 2011 structural break mentioned."
+Botswana,2012,1,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: PPIAF study for creation of multi-sector utility regulator."
+Botswana,2013,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 3
+summary: [Health financing factsheet; no structural break or event mentioned.]"
+Botswana,2016,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: HIV/AIDS project supporting prevention and national coordination capacity."
+Botswana,2017,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Education reform recommendations; no evidence of macroeconomic break."
+Botswana,2022,4,ok,,"break_supported: 1
+break_type: external_shock
+duration: within 1 year
+climate_related: 0
+confidence: 4
+summary: Growth moderation to 4.1% after 12.1% COVID-19 rebound."

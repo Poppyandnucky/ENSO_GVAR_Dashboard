@@ -1,0 +1,73 @@
+country,break_year,n_docs,status,error_message,raw_output
+Albania,2008,3,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Impacts of 2008 food crisis and global recession analyzed."
+Albania,2009,4,ok,,"break_supported: 1
+break_type: financial_crisis, policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Global recession impacts and electricity distribution privatization in 2009."
+Albania,2010,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Graduated upper-middle income status; Greek crisis; new growth agenda]"
+Albania,2011,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: [social services law, industrial park plan, environmental cleanup, nutrition focus]"
+Albania,2012,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 1
+summary: No evidence of structural break in 2012 documents."
+Albania,2013,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 1
+confidence: 4
+summary: Energy sector privatization and agricultural climate adaptation policy."
+Albania,2015,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Document summarizes gender data; no evidence of structural break."
+Albania,2016,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: [WB guarantee addressed debt risks; education scores improved significantly.]"
+Albania,2017,1,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: Albania trade policy reform and customs operationalization efforts."
+Albania,2020,2,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: 2 year
+climate_related: 0
+confidence: 5
+summary: [COVID-19 pandemic and health sector reforms impact firms and systems.]"
+Albania,2021,2,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 1
+confidence: 5
+summary: Post-COVID recovery and shift toward green structural reforms."
+Albania,2022,4,ok,,"break_supported: 1
+break_type: external_shock, commodity_or_trade
+duration: within 1 year
+climate_related: 0
+confidence: 4
+summary: War in Ukraine and inflation threaten 2022 economic prospects."

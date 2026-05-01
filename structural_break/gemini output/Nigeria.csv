@@ -1,0 +1,67 @@
+country,break_year,n_docs,status,error_message,raw_output
+Nigeria,2012,4,ok,,"break_supported: 1
+break_type: climate_shock, commodity_or_trade
+duration: long_term
+climate_related: 1
+confidence: 5
+summary: [Record 2012 floods caused $17 billion in economic damages.]"
+Nigeria,2013,4,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Documents discuss development planning and climate risks, no macro break."
+Nigeria,2014,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: No break evidence; documents report satisfactory performance and trade barriers."
+Nigeria,2015,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Documents focus on health, nutrition, and state-level fiscal management."
+Nigeria,2016,4,ok,,"break_supported: 1
+break_type: policy_change, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Conflict recovery strategy and urbanization economic transformation framework launched.]"
+Nigeria,2017,4,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: Recovery and peace-building programmatic approach in North East Nigeria."
+Nigeria,2019,3,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Documents describe specific projects; no evidence of national structural break."
+Nigeria,2020,4,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Documents cover 2010-2019 data, no 2020 structural break found."
+Nigeria,2021,4,ok,,"break_supported: 1
+break_type: policy_change, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Recovery from 2020 recession; major fiscal and exchange reforms]"
+Nigeria,2022,4,ok,,"break_supported: 1
+break_type: external_shock, commodity_or_trade
+duration: long_term
+climate_related: 1
+confidence: 5
+summary: Inflation, Ukraine war shocks, oil dependence, and fiscal instability."
+Nigeria,2023,4,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Fuel subsidy removal, exchange rate liberalization, new administration policy reforms]"

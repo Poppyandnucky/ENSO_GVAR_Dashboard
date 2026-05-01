@@ -1,0 +1,31 @@
+country,break_year,n_docs,status,error_message,raw_output
+Italy,2007,1,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Italy modernizing bankruptcy law and legal framework reform 2007]"
+Italy,2020,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [Data center established in Rome for surveys in developing nations.]"
+Italy,2022,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Italy 2022 Learning Poverty Brief; no structural break evidence."
+Italy,2023,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Renewed Ethiopia program support and international private sector partnerships."
+Italy,2024,3,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: -99
+confidence: 5
+summary: Routine indicator snapshots; no structural event mentioned."

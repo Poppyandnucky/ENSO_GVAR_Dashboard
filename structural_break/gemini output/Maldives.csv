@@ -1,0 +1,49 @@
+country,break_year,n_docs,status,error_message,raw_output
+Maldives,2005,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Routine annual project status report; no evidence of macroeconomic shift."
+Maldives,2006,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Routine project status report; no mention of economic shift."
+Maldives,2007,2,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: Public accounting standards assessment and project status reporting."
+Maldives,2010,3,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: [Privatization program launched with flagship airport PPP deal.]"
+Maldives,2011,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Introduction of universal health insurance and new tax reforms.]"
+Maldives,2012,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 4
+summary: No macro-structural break evidence in port or health documents."
+Maldives,2016,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [Focuses on gender inequality and social norms, not macroeconomics.]"
+Maldives,2022,4,ok,,"break_supported: 1
+break_type: external_shock, commodity_or_trade
+duration: 2 year
+climate_related: 0
+confidence: 3
+summary: Post-pandemic recovery, Russia-Ukraine war tourism impact, unsustainable public debt."

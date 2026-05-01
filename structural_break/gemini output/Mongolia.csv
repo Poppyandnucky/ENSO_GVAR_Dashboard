@@ -1,0 +1,19 @@
+country,break_year,n_docs,status,error_message,raw_output
+Mongolia,2020,4,ok,,"break_supported: 1
+break_type: external_shock, climate_shock
+duration: long_term
+climate_related: 1
+confidence: 5
+summary: COVID-19 shock and climate concerns require structural transformation."
+Mongolia,2021,1,ok,,"break_supported: 1
+break_type: external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Pandemic shocks, record low female employment, and food inflation."
+Mongolia,2022,4,ok,,"break_supported: 1
+break_type: external_shock, commodity_or_trade
+duration: 2 year
+climate_related: 0
+confidence: 4
+summary: [Ukraine war and logistical bottlenecks drag 2022 economic recovery]"

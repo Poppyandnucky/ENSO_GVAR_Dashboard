@@ -1,0 +1,67 @@
+country,break_year,n_docs,status,error_message,raw_output
+Chile,1997,4,ok,,"break_supported: 0
+break_type: external_shock
+duration: within 1 year
+climate_related: 0
+confidence: 5
+summary: Documents do not mention a 1997 break for Chile."
+Chile,1998,4,ok,,"break_supported: -99
+break_type: -99
+duration: -99
+climate_related: -99
+confidence: 1
+summary: [Insufficient textual evidence for 1998 structural break in Chile.]"
+Chile,1999,4,ok,,"break_supported: 1
+break_type: policy_change, external_shock
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: Macroeconomic policy lessons and labor market flexibility analysis."
+Chile,2003,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: Digital strategy, education projects, and public sector reforms."
+Chile,2004,2,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Institutional social protection reforms and new unemployment insurance system.]"
+Chile,2005,4,ok,,"break_supported: 0
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: Retrospective on budgeting reforms and salmon industry growth."
+Chile,2012,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: No evidence for 2012 break; documents describe ongoing policies."
+Chile,2013,3,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [Evaluations of 2002 and 2007 programs; general macro factsheets.]"
+Chile,2014,1,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Health profile, 2005 AUGE reform, no 2014 break evidence."
+Chile,2020,2,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: COVID-19 pandemic necessitated rapid transition to distance learning."
+Chile,2021,3,ok,,"break_supported: 1
+break_type: external_shock
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: COVID-19 crisis deepened labor market gaps and gender disparities."

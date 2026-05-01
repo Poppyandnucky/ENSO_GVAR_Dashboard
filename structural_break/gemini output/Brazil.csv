@@ -1,0 +1,68 @@
+country,break_year,n_docs,status,error_message,raw_output
+Brazil,1998,4,ok,,"break_supported: 0
+break_type: external_shock, commodity_or_trade
+duration: within 1 year
+climate_related: 0
+confidence: 2
+summary: [Falling commodity prices; Mercosur trade concerns; Amazon land-use zoning.]"
+Brazil,1999,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: No textual evidence for structural break in year 1999."
+Brazil,2000,4,error,ReadError('[Errno 65] No route to host'),
+Brazil,2001,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Significant social security and pension reforms addressing fiscal deficits."
+Brazil,2002,4,ok,,"break_supported: 1
+break_type: policy_change, climate_shock
+duration: long_term
+climate_related: 1
+confidence: 4
+summary: Labor reforms, fiscal debt, and drought-impacted agricultural productivity."
+Brazil,2003,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: New 2003 government reconfirmed macroeconomic stability and fiscal reforms."
+Brazil,2016,4,ok,,"break_supported: 1
+break_type: financial_crisis, policy_change
+duration: long_term
+climate_related: 1
+confidence: 3
+summary: Fiscal deficits, debt sustainability, and climate-driven water management."
+Brazil,2017,2,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: Localized healthcare PPP and state-level power utility privatization."
+Brazil,2018,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Economic recovery and proposed policy shifts during 2018 elections]"
+Brazil,2021,4,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [COVID-19 recovery, emergency program termination, poverty trend reversal.]"
+Brazil,2022,4,ok,,"break_supported: 1
+break_type: policy_change, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Ukraine war and monetary tightening expected to depress 2022 growth."
+Brazil,2023,4,ok,,"break_supported: 1
+break_type: policy_change, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Growth deceleration, fiscal anchor uncertainty, and social transfer reforms."

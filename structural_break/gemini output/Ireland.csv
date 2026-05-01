@@ -1,0 +1,37 @@
+country,break_year,n_docs,status,error_message,raw_output
+Ireland,2001,2,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: Ireland's EU convergence used as historical lesson for others."
+Ireland,2002,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Technical study on dam safety; no macroeconomic relevance found."
+Ireland,2003,2,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Documents describe social partnership policy reform starting 1987 and 2000."
+Ireland,2008,1,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Document analyzes 2008 global recession and food crisis impacts."
+Ireland,2009,1,ok,,"break_supported: 1
+break_type: financial_crisis, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Global recession and food crisis impacts trade performance.]"
+Ireland,2022,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Education brief; no evidence of macroeconomic structural break."

@@ -1,0 +1,31 @@
+country,break_year,n_docs,status,error_message,raw_output
+Uganda,2019,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 2
+summary: Provided documents lack evidence of a 2019 structural break."
+Uganda,2020,4,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: within 1 year
+climate_related: 0
+confidence: 5
+summary: COVID-19 pandemic and containment measures caused economic damage and job losses."
+Uganda,2021,4,ok,,"break_supported: 1
+break_type: external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: COVID-19 pandemic external shocks and structural economic transformation."
+Uganda,2022,4,ok,,"break_supported: 1
+break_type: external_shock, commodity_or_trade
+duration: 2 year
+climate_related: 1
+confidence: 4
+summary: [Russia-Ukraine crisis risks, economy reopening, inflation, and climate shocks]"
+Uganda,2023,4,ok,,"break_supported: 1
+break_type: policy_change, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: GDP growth accelerates due to investment momentum and monetary policy."

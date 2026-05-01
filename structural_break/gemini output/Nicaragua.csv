@@ -1,0 +1,73 @@
+country,break_year,n_docs,status,error_message,raw_output
+Nicaragua,2008,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Global recession and food crisis impacts analyzed in 2008.]"
+Nicaragua,2009,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Global recession and food crisis created significant external shocks."
+Nicaragua,2010,4,ok,,"break_supported: 1
+break_type: policy_change, climate_shock
+duration: long_term
+climate_related: 1
+confidence: 4
+summary: Economic turnaround, debt relief, and climate change adaptation efforts."
+Nicaragua,2013,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: -99
+confidence: 5
+summary: Documents analyze historical data (2000-2006), not 2013 structural events."
+Nicaragua,2014,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Coffee productivity pilot project; no evidence of macroeconomic break."
+Nicaragua,2015,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Brief on wind farm project; no macroeconomic break support."
+Nicaragua,2016,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: -99
+confidence: 5
+summary: Document describes risk profiles, not specific 2016 events."
+Nicaragua,2017,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [Focus on health policy; no macroeconomic break evidence.]"
+Nicaragua,2018,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: [Social study on aspirations; no evidence of structural break.]"
+Nicaragua,2020,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Health worker training and natural medicine integration in MINSA."
+Nicaragua,2021,1,ok,,"break_supported: -99
+break_type: external_shock
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: [Gender labor inequality and COVID-19 impact]"
+Nicaragua,2022,4,ok,,"break_supported: 1
+break_type: policy_change, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Fiscal consolidation, Ukraine war, and political context expected to reduce growth.]"

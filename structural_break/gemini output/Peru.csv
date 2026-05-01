@@ -1,0 +1,55 @@
+country,break_year,n_docs,status,error_message,raw_output
+Peru,2012,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: No 2012 break; text covers health, gender, and past reforms."
+Peru,2013,4,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Documents indicate policy continuity and social inclusion focus."
+Peru,2014,3,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Sectoral reports; no evidence of macroeconomic structural break."
+Peru,2016,4,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: TPP signed February 2016, extractive revenue management, port development."
+Peru,2017,3,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: Documents discuss financial disclosure legislation and rural electrification programs."
+Peru,2018,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Ongoing infrastructure and finance programs; no 2018 structural break supported.]"
+Peru,2020,3,ok,,"break_supported: 1
+break_type: external_shock
+duration: within 1 year
+climate_related: 0
+confidence: 5
+summary: [COVID-19 pandemic, strict lockdown, external shock, remote learning transition]"
+Peru,2021,4,ok,,"break_supported: 0
+break_type: external_shock
+duration: within 1 year
+climate_related: 0
+confidence: 5
+summary: Documents focus on gender equality, private finance, and urban resilience."
+Peru,2022,4,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [GDP returns to trend; export prices; political uncertainty]"

@@ -1,0 +1,31 @@
+country,break_year,n_docs,status,error_message,raw_output
+Montenegro,2012,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: Embarking on next stage of EU integration and reforms."
+Montenegro,2013,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Documents discuss gender indicators and smallholder agricultural grants."
+Montenegro,2020,1,ok,,"break_supported: 1
+break_type: external_shock
+duration: within 1 year
+climate_related: 0
+confidence: 5
+summary: COVID-19 pandemic caused significant external economic shock to firms."
+Montenegro,2022,4,ok,,"break_supported: 1
+break_type: policy_change, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Landmark Europe Now reform and Ukraine war impact economic outlook."
+Montenegro,2023,2,ok,,"break_supported: 1
+break_type: policy_change, external_shock
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: [Growth deceleration, inflation surge, fiscal deficit, and financing costs.]"

@@ -1,0 +1,67 @@
+country,break_year,n_docs,status,error_message,raw_output
+Ukraine,2007,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Growth strong but financial risks and global jitters emerging."
+Ukraine,2008,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Global financial crisis ended several years of high growth."
+Ukraine,2009,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Global recession caused sharp downturn and painful economic rebalancing.]"
+Ukraine,2011,4,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 4
+summary: [Health report identifies mortality crisis; economic recovery is fragile.]"
+Ukraine,2012,4,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Growth slowed due to Euro crisis and fiscal policy loosening."
+Ukraine,2013,4,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Ukraine recession, weak external demand, policy delays, macroeconomic imbalances]"
+Ukraine,2014,2,ok,,"break_supported: 1
+break_type: policy_change, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Urgent macroeconomic stabilization, structural reforms, flat GDP, imbalances]"
+Ukraine,2015,2,ok,,"break_supported: 0
+break_type: commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: Port expansion project and gender data summaries."
+Ukraine,2016,4,ok,,"break_supported: 1
+break_type: external_shock, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Economy stabilized in 2016 after conflict and commodity shocks."
+Ukraine,2022,4,ok,,"break_supported: 1
+break_type: external_shock, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Russian invasion, 45% GDP contraction, trade disruptions, long-lasting repercussions]"
+Ukraine,2023,4,ok,,"break_supported: 1
+break_type: external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [War invasion, energy infrastructure attacks, minimal growth, high reconstruction needs]"

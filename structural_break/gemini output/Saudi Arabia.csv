@@ -1,0 +1,25 @@
+country,break_year,n_docs,status,error_message,raw_output
+Saudi Arabia,2018,1,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Multifaceted reforms, OPEC oil production cuts, fiscal consolidation]"
+Saudi Arabia,2020,1,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [COVID-19 forced rapid transition to online education and AI testing]"
+Saudi Arabia,2021,3,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 4
+summary: [Health sector reforms and corporate bond benchmark; no break evidence.]"
+Saudi Arabia,2022,4,ok,,"break_supported: 1
+break_type: external_shock, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Accelerated growth path from higher oil prices and production]"

@@ -1,0 +1,55 @@
+country,break_year,n_docs,status,error_message,raw_output
+Ghana,2014,4,ok,,"break_supported: 1
+break_type: policy_change, climate_shock
+duration: long_term
+climate_related: 1
+confidence: 3
+summary: Reforms in land administration, skills development, and flood forecasting."
+Ghana,2015,3,ok,,"break_supported: 1
+break_type: policy_change, financial_crisis
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Sovereign bond guarantee, macro-fiscal stability, debt refinancing, power expansion."
+Ghana,2016,4,ok,,"break_supported: 1
+break_type: financial_crisis, policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Fiscal and economic crisis requiring urgent structural reforms."
+Ghana,2019,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Growth remains robust; documents highlight future fiscal risks."
+Ghana,2020,4,ok,,"break_supported: 1
+break_type: external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: COVID-19 shock caused job losses and household income reductions."
+Ghana,2021,4,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: COVID-19 shock, 4% GDP decline, and economic transformation strategy."
+Ghana,2022,4,ok,,"break_supported: 1
+break_type: financial_crisis, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: High debt, fiscal deficit, inflation, food and fuel price surges."
+Ghana,2023,3,ok,,"break_supported: 1
+break_type: financial_crisis, policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Deep macroeconomic crisis, debt restructuring, inflation, and banking vulnerabilities."
+Ghana,2024,4,ok,,"break_supported: 1
+break_type: financial_crisis, policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Debt restructuring, stabilization program, fiscal sustainability, peak poverty 2024."

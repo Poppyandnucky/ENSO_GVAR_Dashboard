@@ -1,0 +1,25 @@
+country,break_year,n_docs,status,error_message,raw_output
+Qatar,2016,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Education assessment results only; no macro evidence provided."
+Qatar,2018,1,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: diplomatic rift, rising gas output, labor and residency reforms."
+Qatar,2022,4,ok,,"break_supported: 1
+break_type: external_shock, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Ukraine war commodity shocks, World Cup diversification, LNG production expansion]"
+Qatar,2023,2,ok,,"break_supported: 1
+break_type: commodity_or_trade, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Post-World Cup transition to North Field LNG expansion project]"

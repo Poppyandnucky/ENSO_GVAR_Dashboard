@@ -1,0 +1,61 @@
+country,break_year,n_docs,status,error_message,raw_output
+Thailand,2012,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: [Sectoral energy and health reports; no macroeconomic break evidence.]"
+Thailand,2013,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 2
+summary: Documents provide general macro context but no specific break evidence."
+Thailand,2014,1,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 1
+confidence: 1
+summary: Solar industry growth; no evidence of 2014 structural break."
+Thailand,2015,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [HIV health policy and testing study for MSM population]"
+Thailand,2017,4,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Documents focus on subnational conflict and education, not macroeconomy."
+Thailand,2019,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Focuses on HIV health service delivery models and funding."
+Thailand,2020,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [HIV services and Mekong water resource management planning.]"
+Thailand,2021,4,ok,,"break_supported: 1
+break_type: policy_change, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: COVID-19 recovery, border reopening, and public debt ceiling increase."
+Thailand,2022,4,ok,,"break_supported: 1
+break_type: policy_change, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [High inflation, monetary normalization, Ukraine-Russia war shock, tourism recovery]"
+Thailand,2023,4,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [China reopening and tourism recovery offset by weak external demand]"

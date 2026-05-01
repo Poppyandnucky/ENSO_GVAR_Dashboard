@@ -1,0 +1,31 @@
+country,break_year,n_docs,status,error_message,raw_output
+Pakistan,2020,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Summaries focus on SMEs, gender investment, and social cohesion."
+Pakistan,2021,4,ok,,"break_supported: 1
+break_type: external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: COVID-19 caused unprecedented economic insecurity and labor market disruptions."
+Pakistan,2022,4,ok,,"break_supported: 1
+break_type: external_shock, commodity_or_trade
+duration: 2 year
+climate_related: 1
+confidence: 4
+summary: [GDP slowdown, inflation, trade deficit, commodity prices, floods]"
+Pakistan,2023,3,ok,,"break_supported: 1
+break_type: policy_change, climate_shock
+duration: long_term
+climate_related: 1
+confidence: 5
+summary: Economic stress from floods, policy tightening, and political uncertainty."
+Pakistan,2024,4,ok,,"break_supported: 1
+break_type: policy_change, financial_crisis
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Economy stabilized in FY24 through improved policies and external financing."

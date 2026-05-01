@@ -1,0 +1,67 @@
+country,break_year,n_docs,status,error_message,raw_output
+Japan,1997,4,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: [Documents cover MIGA, regional infrastructure, and historical industrial technology policies.]"
+Japan,1998,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: [Restructuring housing finance and linking with capital markets]"
+Japan,2007,3,ok,,"break_supported: 0
+break_type: Unclear
+duration: Unclear
+climate_related: 0
+confidence: 5
+summary: Documents focus on international development aid and university-industry links."
+Japan,2008,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Global recession, food crisis, and aid program restructuring in 2008."
+Japan,2009,2,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Global recession and food crisis impacted Japan's trade performance."
+Japan,2013,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [Documents describe donor activities and Tokyo's emissions trading results.]"
+Japan,2014,4,ok,,"break_supported: 0
+break_type: external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Documents discuss 2011 earthquake recovery and international development funds.]"
+Japan,2015,3,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Documents focus on Japanese foreign aid and donor programs."
+Japan,2019,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [Document discusses 2015-2016 disaster risk management program activities]"
+Japan,2020,2,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: within 1 year
+climate_related: 0
+confidence: 5
+summary: COVID-19 pandemic, school closures, distance learning, policy response."
+Japan,2021,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Japanese aid fund report; no evidence of domestic structural break."

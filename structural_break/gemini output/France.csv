@@ -1,0 +1,37 @@
+country,break_year,n_docs,status,error_message,raw_output
+France,1998,1,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 1
+confidence: 2
+summary: OECD report describes gradual environmental policy evolution, not specific break."
+France,1999,3,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 2
+summary: No textual support for structural break in France 1999."
+France,2008,1,ok,,"break_supported: 1
+break_type: financial_crisis, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Global recession and food crisis impacted France in 2008."
+France,2009,1,ok,,"break_supported: 1
+break_type: financial_crisis, commodity_or_trade
+duration: within 1 year
+climate_related: 0
+confidence: 4
+summary: Global recession and food crisis impacted trade in 2009."
+France,2013,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: No evidence of macroeconomic structural break in provided documents."
+France,2020,2,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: COVID-19 pandemic, school closures, digital education transition, pedagogical continuity."

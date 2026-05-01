@@ -1,0 +1,55 @@
+country,break_year,n_docs,status,error_message,raw_output
+Sri Lanka,2012,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Sri Lanka transitions to middle-income status with new development strategy."
+Sri Lanka,2013,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: Government launched ambitious infrastructure and urban regeneration programs."
+Sri Lanka,2014,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 1
+confidence: 4
+summary: Structural changes, skills development, and climate resilience policy implementation."
+Sri Lanka,2017,4,ok,,"break_supported: 1
+break_type: external_shock, climate_shock
+duration: long_term
+climate_related: 1
+confidence: 5
+summary: May 2017 floods and landslides caused major economic damage."
+Sri Lanka,2018,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Document discusses long-term post-war regional recovery, not a 2018 break."
+Sri Lanka,2020,2,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: [Focus on persistent gender labor gap and childcare education.]"
+Sri Lanka,2021,4,ok,,"break_supported: 1
+break_type: external_shock
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: COVID-19 external shock and SCD update reported in 2021."
+Sri Lanka,2022,4,ok,,"break_supported: 1
+break_type: financial_crisis, policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [unsustainable debt and balance of payments crisis in 2022]"
+Sri Lanka,2023,3,ok,,"break_supported: 1
+break_type: financial_crisis, policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Severe 2022 contraction, debt restructuring, deep reforms, poverty increase]"

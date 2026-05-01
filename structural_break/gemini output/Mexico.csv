@@ -1,0 +1,61 @@
+country,break_year,n_docs,status,error_message,raw_output
+Mexico,2008,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Global recession and food crisis impact Mexican trade performance."
+Mexico,2009,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Global recession and food crisis impacted trade and growth."
+Mexico,2010,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: within 1 year
+climate_related: 0
+confidence: 5
+summary: No textual support for 2010 structural break in Mexico."
+Mexico,2011,4,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Documents describe health, poverty, and evaluation systems; no break mentioned."
+Mexico,2012,4,ok,,"break_supported: -99
+break_type: 
+duration: 
+climate_related: -99
+confidence: 1
+summary: [Insufficient data to support structural break in 2012.]"
+Mexico,2013,4,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Documents evaluate past social programs, not a 2013 break."
+Mexico,2014,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 1
+confidence: 3
+summary: [National energy efficiency and renewable energy policy rollouts]"
+Mexico,2020,2,ok,,"break_supported: 1
+break_type: external_shock
+duration: within 1 year
+climate_related: 0
+confidence: 4
+summary: [COVID-19 crisis caused major education system disruptions in 2020.]"
+Mexico,2021,4,ok,,"break_supported: 0
+break_type: external_shock
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: Pandemic worsened gender inequality; youth labor project in progress."
+Mexico,2022,4,ok,,"break_supported: 1
+break_type: external_shock, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Persistent inflation, US monetary normalization, and supply chain disruptions.]"

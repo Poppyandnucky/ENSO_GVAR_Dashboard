@@ -1,0 +1,25 @@
+country,break_year,n_docs,status,error_message,raw_output
+Finland,2002,1,ok,,"break_supported: 0
+break_type: policy_change
+duration: within 1 year
+climate_related: 0
+confidence: 5
+summary: Dam safety regulatory study; no evidence of macroeconomic structural break."
+Finland,2006,1,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Document describes 1990s transition, not a 2006 break."
+Finland,2010,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Routine business regulation report; no structural break evidence."
+Finland,2020,1,ok,,"break_supported: 1
+break_type: external_shock
+duration: within 1 year
+climate_related: 0
+confidence: 5
+summary: COVID-19 crisis triggered immediate transition to distance learning."

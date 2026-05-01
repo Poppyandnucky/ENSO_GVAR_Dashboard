@@ -1,0 +1,49 @@
+country,break_year,n_docs,status,error_message,raw_output
+Costa Rica,1998,2,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Intel investment and trade policy reform shift economic structure.]"
+Costa Rica,1999,3,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Third Structural Adjustment Loan project and labor market reforms."
+Costa Rica,2000,2,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 1
+confidence: 4
+summary: [Pension reform strategy and pioneer forest conservation policies documented.]"
+Costa Rica,2001,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [Documents do not mention Costa Rica or 2001 break]"
+Costa Rica,2005,2,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: trade liberalization and management of trade policy instruments."
+Costa Rica,2006,3,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: New government, DR-CAFTA trade liberalization, macroeconomic reform focus."
+Costa Rica,2021,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 1
+confidence: 4
+summary: Climate policy framework launch and decarbonization fiscal modeling."
+Costa Rica,2022,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: 2021 growth exceeded targets; fiscal consolidation ongoing; COVID-19 recovery."

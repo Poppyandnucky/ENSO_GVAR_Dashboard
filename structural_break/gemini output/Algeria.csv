@@ -1,0 +1,43 @@
+country,break_year,n_docs,status,error_message,raw_output
+Algeria,2007,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 2
+summary: [ICT education policy and routine project monitoring reports]"
+Algeria,2008,3,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Global recession and food crisis impacted Algerian trade indicators.]"
+Algeria,2009,2,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: within 1 year
+climate_related: 0
+confidence: 5
+summary: Global recession and food crisis impacts in 2009."
+Algeria,2010,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 2
+summary: Generic business regulation report; no structural break evidence."
+Algeria,2011,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Gradual liberalization since mid-1990s; no specific 2011 structural break."
+Algeria,2018,1,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [fiscal consolidation, seignorage financing, hydrocarbon decline, twin deficits, inflation]"
+Algeria,2022,4,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Massive public spending increase and high hydrocarbon export revenues.]"

@@ -1,0 +1,61 @@
+country,break_year,n_docs,status,error_message,raw_output
+Honduras,2006,4,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Implementation of DR-CAFTA trade agreement and economic reforms]"
+Honduras,2007,2,ok,,"break_supported: -99
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: health system reform and project status reports"
+Honduras,2008,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Global recession and food crisis impacts trade performance in 2008."
+Honduras,2009,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Global recession and food crisis impacted national trade performance."
+Honduras,2010,4,ok,,"break_supported: 1
+break_type: policy_change, external_shock
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: [Food crisis response, agro policy, and remittance regulatory reforms]"
+Honduras,2011,3,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [New government implements large-scale conditional cash transfer program]"
+Honduras,2012,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Disaster mitigation and public sector reform project results."
+Honduras,2013,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 1
+summary: [Macro-fiscal factsheet; no specific event or break mentioned]"
+Honduras,2019,1,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 1
+confidence: 3
+summary: [Water sector modernization and utility decentralization improve resilience]"
+Honduras,2021,2,ok,,"break_supported: 0
+break_type: external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: COVID-19 2020 shock; firm revenue loss; gender labor impacts."

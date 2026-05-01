@@ -1,0 +1,37 @@
+country,break_year,n_docs,status,error_message,raw_output
+Malaysia,2016,4,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: [Malaysia signed Trans-Pacific Partnership 2016; productivity and structural transformation focus]"
+Malaysia,2017,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 2
+summary: Documents provide firm-level diagnostics but no structural break event."
+Malaysia,2018,2,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: [Documents describe fiscal space and gender; no structural break evidence.]"
+Malaysia,2019,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Focus on administrative reform and combating corruption."
+Malaysia,2020,4,ok,,"break_supported: 1
+break_type: external_shock
+duration: long_term
+climate_related: 1
+confidence: 5
+summary: COVID-19 pandemic shock and climate change risks identified."
+Malaysia,2021,4,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: COVID-19 lockdowns (MCO 2.0) and high-income transition reforms."

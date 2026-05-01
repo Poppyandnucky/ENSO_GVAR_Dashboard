@@ -1,0 +1,7 @@
+country,break_year,n_docs,status,error_message,raw_output
+Namibia,2022,4,ok,,"break_supported: 1
+break_type: external_shock, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: Favorable 2022 outlook, mining sector growth, post-pandemic recovery."

@@ -1,0 +1,61 @@
+country,break_year,n_docs,status,error_message,raw_output
+Ecuador,2004,2,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: Water privatization in Guayaquil and rural community radio initiatives."
+Ecuador,2005,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [Focus on 1999 crisis aftermath and fiscal management.]"
+Ecuador,2006,4,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Documents describe ongoing sectoral reforms, not a 2006 break."
+Ecuador,2007,2,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: Nutrition strategy study and routine project status reports."
+Ecuador,2008,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Impact of global recession, food crisis, and trade policy."
+Ecuador,2009,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Administrative report on active projects; no evidence of economic break."
+Ecuador,2010,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 2
+summary: [Documents provide routine data updates without mentioning structural breaks.]"
+Ecuador,2011,3,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: No macro structural break mentioned in provided documents."
+Ecuador,2020,4,ok,,"break_supported: 1
+break_type: external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Decade-high unemployment and massive Venezuelan migrant influx]"
+Ecuador,2021,2,ok,,"break_supported: 1
+break_type: policy_change, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Post-pandemic recovery, labor market policy shifts, COVID-19 impacts."

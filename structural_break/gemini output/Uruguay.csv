@@ -1,0 +1,31 @@
+country,break_year,n_docs,status,error_message,raw_output
+Uruguay,2017,1,ok,,"break_supported: 0
+break_type: policy_change
+duration: within 1 year
+climate_related: 1
+confidence: 3
+summary: Pilot drought insurance launched for small-scale cattle producers."
+Uruguay,2020,2,ok,,"break_supported: 1
+break_type: external_shock
+duration: within 1 year
+climate_related: 0
+confidence: 4
+summary: COVID-19 pandemic caused external shock requiring education system adaptations."
+Uruguay,2021,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Document reports persistent gender disparities, not a structural break."
+Uruguay,2022,4,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: [Monetary tightening and commodity price risks impact 2022 recovery outlook.]"
+Uruguay,2023,3,ok,,"break_supported: 1
+break_type: climate_shock, policy_change
+duration: within 1 year
+climate_related: 1
+confidence: 5
+summary: [Drought and end of post-pandemic recovery decelerate 2023 growth.]"

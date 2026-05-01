@@ -1,0 +1,67 @@
+country,break_year,n_docs,status,error_message,raw_output
+Indonesia,1997,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: No textual support for structural break in 1997."
+Indonesia,1998,4,ok,,"break_supported: 1
+break_type: financial_crisis
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [East Asian financial crisis; deep protracted adjustment in Indonesia]"
+Indonesia,1999,4,ok,,"break_supported: 1
+break_type: financial_crisis, policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Financial crisis, health expenditure compression, and economic policy reforms."
+Indonesia,2000,4,ok,,"break_supported: 1
+break_type: financial_crisis, policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Crisis recovery, fiscal policy shifts, decentralization, and economic stabilization."
+Indonesia,2001,4,ok,,"break_supported: 1
+break_type: policy_change, financial_crisis
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Rapid decentralization, new administration, and post-crisis economic restructuring.]"
+Indonesia,2004,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [New government, policy package, investment recovery, economic reform agenda]"
+Indonesia,2005,4,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Aceh peace agreement ends conflict; WTO trade policy impacts."
+Indonesia,2006,4,ok,,"break_supported: 1
+break_type: policy_change, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Aceh tsunami reconstruction and Helsinki peace accord implementation."
+Indonesia,2010,4,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Post-crisis recovery, commodity boom, and deepening institutional policy reforms.]"
+Indonesia,2011,4,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: National Logistics Blueprint, trade reforms, financial crisis recovery."
+Indonesia,2012,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [National social security reform (SJSN) and BPJS implementation]"

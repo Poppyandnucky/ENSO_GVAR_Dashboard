@@ -1,0 +1,43 @@
+country,break_year,n_docs,status,error_message,raw_output
+Singapore,2007,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Documents focus on universities and judiciary, no 2007 break."
+Singapore,2008,2,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: within 1 year
+climate_related: 0
+confidence: 5
+summary: [Global recession and food crisis impacts analyzed in 2008.]"
+Singapore,2009,1,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: within 1 year
+climate_related: 0
+confidence: 4
+summary: [2009 global recession and food crisis impacted Singapore's trade.]"
+Singapore,2010,1,ok,,"break_supported: -99
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 1
+summary: Annual report measuring business regulation indicators and reforms."
+Singapore,2013,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 2
+summary: [Documents provide no evidence of a 2013 structural break.]"
+Singapore,2020,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 1
+summary: [Abstract missing; title describes development planning brief]"
+Singapore,2022,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Routine education brief; no evidence of macroeconomic structural break."

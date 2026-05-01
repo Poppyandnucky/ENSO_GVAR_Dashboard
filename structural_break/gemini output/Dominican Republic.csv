@@ -1,0 +1,55 @@
+country,break_year,n_docs,status,error_message,raw_output
+Dominican Republic,2004,1,ok,,"break_supported: -99
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: [HIV/AIDS project results; health data; no macroeconomic evidence.]"
+Dominican Republic,2005,2,ok,,"break_supported: 1
+break_type: financial_crisis, policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Recovery from 2003 bank crisis through successful institutional reforms."
+Dominican Republic,2007,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Documents describe specific project monitoring and infrastructure insurance only."
+Dominican Republic,2008,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Global recession, food crisis, and avian flu impacting trade."
+Dominican Republic,2009,3,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Analyzes national impacts of food crisis and global recession."
+Dominican Republic,2012,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: 2012-2015 National Plan introduced with performance contracts and reforms."
+Dominican Republic,2013,2,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: [Government established new poverty measurement methodology and committee]"
+Dominican Republic,2021,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [Gender scorecard describes persistent inequality, no macro structural break.]"
+Dominican Republic,2022,4,ok,,"break_supported: 1
+break_type: external_shock, commodity_or_trade
+duration: within 1 year
+climate_related: 0
+confidence: 2
+summary: 2021 rebound followed by 2022 inflationary pressures and poverty."

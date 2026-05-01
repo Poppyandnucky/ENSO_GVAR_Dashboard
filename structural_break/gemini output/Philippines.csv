@@ -1,0 +1,67 @@
+country,break_year,n_docs,status,error_message,raw_output
+Philippines,2013,4,ok,,"break_supported: 1
+break_type: policy_change, climate_shock
+duration: long_term
+climate_related: 1
+confidence: 4
+summary: Climate policy reform agenda and increasing climate change impacts."
+Philippines,2014,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Documents describe specific projects; no evidence of macroeconomic structural break."
+Philippines,2015,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Documents discuss infrastructure projects and sanitation; no macro break."
+Philippines,2016,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Focus on 2012 tax reform and 2013 typhoon response]"
+Philippines,2017,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Studies on climate resilience and labor; no 2017 break."
+Philippines,2018,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Study on agricultural pollution; no evidence of 2018 break."
+Philippines,2020,4,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [COVID-19 triggered business closures, sales decline, and liquidity constraints.]"
+Philippines,2021,4,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [COVID-19 external shock caused deepening household distress and earnings loss]"
+Philippines,2022,4,ok,,"break_supported: 1
+break_type: policy_change, external_shock
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: Rebound from pandemic, narrowing policy space, and uneven recovery."
+Philippines,2023,3,ok,,"break_supported: 1
+break_type: policy_change, external_shock
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: Post-pandemic recovery, investment policy reforms, narrowing policy space, global deterioration."
+Philippines,2024,4,ok,,"break_supported: 1
+break_type: climate_shock, external_shock
+duration: long_term
+climate_related: 1
+confidence: 4
+summary: Climate shocks hit agriculture; infrastructure and exports bolster growth."

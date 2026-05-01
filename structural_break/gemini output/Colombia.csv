@@ -1,0 +1,73 @@
+country,break_year,n_docs,status,error_message,raw_output
+Colombia,2006,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: Reviews of long-term health, agriculture, and water sector reforms."
+Colombia,2007,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: within 1 year
+climate_related: 0
+confidence: 3
+summary: Environmental costs, pension reform recommendations, and health social targeting."
+Colombia,2008,4,ok,,"break_supported: 1
+break_type: financial_crisis, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Global recession and food crisis impacted trade performance."
+Colombia,2011,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Documents describe specific projects, no evidence of structural break."
+Colombia,2012,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 1
+confidence: 4
+summary: Reforms in productivity, social protection, and disaster fiscal management."
+Colombia,2013,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: No evidence of macroeconomic structural break in documents."
+Colombia,2014,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 1
+confidence: 3
+summary: Health system overhaul and disaster risk policy mandate."
+Colombia,2015,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Sectoral reports on health, education, and transit; no macro break."
+Colombia,2016,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Peace process reparations and massive 4G infrastructure investment program]"
+Colombia,2019,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: within 1 year
+climate_related: 0
+confidence: 5
+summary: Local transport, firm management, and social program evaluations."
+Colombia,2020,4,ok,,"break_supported: 1
+break_type: external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: COVID-19 pandemic caused education closures and long-term systemic transformation."
+Colombia,2021,4,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 1
+confidence: 3
+summary: COVID-19 recovery, sustainable cattle transformation, and water security challenges."

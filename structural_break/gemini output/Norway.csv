@@ -1,0 +1,49 @@
+country,break_year,n_docs,status,error_message,raw_output
+Norway,2004,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Norwegian trust fund report for external development projects."
+Norway,2005,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: [Report on international trust fund; no domestic macroeconomic break.]"
+Norway,2007,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Administrative report on donor trust fund; no macroeconomic evidence."
+Norway,2008,2,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Global recession and food crisis impacts on Norway trade policy]"
+Norway,2009,1,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: within 1 year
+climate_related: 0
+confidence: 4
+summary: Global recession and food crisis impacted Norway's trade indicators."
+Norway,2010,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [Routine annual business regulation report; no structural break evidence.]"
+Norway,2022,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [Learning poverty brief; no evidence of macroeconomic structural break.]"
+Norway,2023,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: [Standard development cooperation and IFC investment portfolio brief, no break.]"

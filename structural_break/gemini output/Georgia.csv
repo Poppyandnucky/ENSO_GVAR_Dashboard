@@ -1,0 +1,61 @@
+country,break_year,n_docs,status,error_message,raw_output
+Georgia,2008,4,ok,,"break_supported: 1
+break_type: external_shock, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Global recession and food crisis impacts Georgia's trade in 2008."
+Georgia,2009,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Global recession and food crisis impacted Georgia's economy."
+Georgia,2010,4,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Far-reaching policy reforms in business, trade, health, and electricity.]"
+Georgia,2015,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Documents provide no evidence of a 2015 structural break."
+Georgia,2016,4,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: Large highway investment and social assistance program reforms."
+Georgia,2018,1,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Investment climate improvements reported in 2018, covering 2016-2017 results.]"
+Georgia,2019,3,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Documents describe 2019 enterprise survey methodology and sampling design."
+Georgia,2020,4,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: COVID-19 pandemic caused severe welfare impacts and economic shocks."
+Georgia,2021,4,ok,,"break_supported: 1
+break_type: external_shock
+duration: within 1 year
+climate_related: 0
+confidence: 4
+summary: COVID-19 recovery, lifting restrictions, job re-entry, and household optimism."
+Georgia,2022,4,ok,,"break_supported: 1
+break_type: external_shock, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Russian invasion impacts trade, remittances, FDI, and commodity prices."

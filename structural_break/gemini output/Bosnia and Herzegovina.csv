@@ -1,0 +1,55 @@
+country,break_year,n_docs,status,error_message,raw_output
+Bosnia and Herzegovina,2006,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Routine project monitoring report; no evidence of structural break."
+Bosnia and Herzegovina,2007,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Shift from reconstruction to EU development and investment climate reforms]"
+Bosnia and Herzegovina,2008,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Global recession and food crisis impacted national trade performance."
+Bosnia and Herzegovina,2009,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Global recession, food crisis, trade impacts, and EU integration transition]"
+Bosnia and Herzegovina,2010,4,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: EU integration progress, land registration reform, and business regulations."
+Bosnia and Herzegovina,2011,4,ok,,"break_supported: 1
+break_type: financial_crisis, policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Financial crisis impact on SMEs; World Bank credit line assistance."
+Bosnia and Herzegovina,2012,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Financial crisis and Eurozone volatility drive shift to export-led growth]"
+Bosnia and Herzegovina,2019,2,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: [Local projects for remittances and energy efficiency, no macro break.]"
+Bosnia and Herzegovina,2021,4,ok,,"break_supported: 0
+break_type: Unclear
+duration: Unclear
+climate_related: -99
+confidence: 5
+summary: No data provided for Bosnia and Herzegovina."

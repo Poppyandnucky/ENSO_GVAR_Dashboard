@@ -1,0 +1,13 @@
+country,break_year,n_docs,status,error_message,raw_output
+Switzerland,2010,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Annual business regulation report; no structural break mentioned."
+Switzerland,2013,2,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: [Documents detail macro-fiscal health indicators and World Bank contributions.]"

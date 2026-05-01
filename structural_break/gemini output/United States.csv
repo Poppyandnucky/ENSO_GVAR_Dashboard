@@ -1,0 +1,67 @@
+country,break_year,n_docs,status,error_message,raw_output
+United States,1999,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Research papers from 1999; no US structural break identified."
+United States,2000,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Summaries discuss globalization and disasters without evidence of US break."
+United States,2001,2,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: [Documents discuss urban management and bus fuel policy globally.]"
+United States,2005,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 4
+summary: Analysis of US interest swap market and Treasury bond supply."
+United States,2006,3,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 4
+summary: [CAFTA and corporate governance discussed; no US macro break evidence]"
+United States,2007,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [Role of universities and R&D in promoting economic growth]"
+United States,2008,2,ok,,"break_supported: 1
+break_type: financial_crisis, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: Global recession and food crisis impacts in United States 2008."
+United States,2009,2,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: within 1 year
+climate_related: 0
+confidence: 5
+summary: Global recession and food crisis impacted 2009 trade performance."
+United States,2010,3,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: US quantitative easing, monetary policy shift, global deflation risks."
+United States,2020,4,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: COVID-19 pandemic caused school closures and systemic educational shifts."
+United States,2021,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Baltic mortgage securitization brief; no evidence of US break."

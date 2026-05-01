@@ -1,0 +1,43 @@
+country,break_year,n_docs,status,error_message,raw_output
+Jamaica,2002,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: -99
+confidence: 1
+summary: No Jamaica-specific evidence for 2002 structural break found."
+Jamaica,2003,2,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: CEM outlines reforms for competitiveness and sustained economic growth."
+Jamaica,2006,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [Routine report monitoring active project progress and disbursements.]"
+Jamaica,2007,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Routine project status report; no structural break evidence."
+Jamaica,2008,3,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Global recession and food crisis impacts documented in 2008.]"
+Jamaica,2020,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [Study on business training pricing; no mention of macro break.]"
+Jamaica,2021,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 4
+summary: Documents cover PFM disaster resilience review and gender equality progress."

@@ -1,0 +1,67 @@
+country,break_year,n_docs,status,error_message,raw_output
+Rwanda,2007,4,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Shift toward growth competitiveness and EAC trade integration.]"
+Rwanda,2008,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Global recession, food crisis, and STI capacity building program."
+Rwanda,2009,4,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Global recession, food crisis, and transition to development strategy."
+Rwanda,2013,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [Health financing evaluations; no evidence of macroeconomic structural break.]"
+Rwanda,2014,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: Documents discuss ongoing reforms without specifying 2014 as the start."
+Rwanda,2015,4,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: Ongoing land reforms and institutional improvements; no 2015 break."
+Rwanda,2017,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: -99
+confidence: 5
+summary: [No evidence supporting a 2017 structural break.]"
+Rwanda,2018,1,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Vision 2050 launch, policy reforms, growth acceleration strategy]"
+Rwanda,2019,2,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: [energy subsidy reforms, reduced fiscal transfers, debt management capacity]"
+Rwanda,2020,3,ok,,"break_supported: 1
+break_type: external_shock, commodity_or_trade
+duration: 2 year
+climate_related: 0
+confidence: 5
+summary: COVID-19 pandemic caused economic contraction and trade disruptions."
+Rwanda,2021,4,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: [COVID-19 recovery and digital financial services expansion]"

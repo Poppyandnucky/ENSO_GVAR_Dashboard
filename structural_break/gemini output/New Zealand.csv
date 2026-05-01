@@ -1,0 +1,37 @@
+country,break_year,n_docs,status,error_message,raw_output
+New Zealand,2008,1,ok,,"break_supported: 1
+break_type: financial_crisis, commodity_or_trade
+duration: within 1 year
+climate_related: 0
+confidence: 4
+summary: Analyzes impacts of food crisis and 2008 global recession."
+New Zealand,2009,1,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: National impacts and responses to global recession and food crisis."
+New Zealand,2010,3,ok,,"break_supported: 0
+break_type: policy_change
+duration: within 1 year
+climate_related: 0
+confidence: 4
+summary: Documents describe existing customs, business regulations, and migration programs."
+New Zealand,2020,1,ok,,"break_supported: 1
+break_type: external_shock
+duration: within 1 year
+climate_related: 0
+confidence: 5
+summary: COVID-19 external shock led to 2020 education policy changes."
+New Zealand,2022,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: [Learning poverty brief; no evidence of structural break.]"
+New Zealand,2023,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Document reports IFC partnership and 2022 social bond issuance."

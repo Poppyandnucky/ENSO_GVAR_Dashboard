@@ -1,0 +1,19 @@
+country,break_year,n_docs,status,error_message,raw_output
+Sweden,2008,1,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [National impacts of global recession and food crisis 2008]"
+Sweden,2009,1,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: 2 year
+climate_related: 0
+confidence: 4
+summary: Global recession and food crisis impacted Sweden's trade performance."
+Sweden,2013,2,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 2
+summary: Documents cover health macro-fiscal factsheets and trust fund contributions."

@@ -1,0 +1,73 @@
+country,break_year,n_docs,status,error_message,raw_output
+Jordan,2007,3,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: First independent power project marks policy shift in energy."
+Jordan,2008,3,ok,,"break_supported: 1
+break_type: financial_crisis, commodity_or_trade
+duration: within 1 year
+climate_related: 0
+confidence: 4
+summary: [Impacts of global recession and food crisis in 2008]"
+Jordan,2009,4,ok,,"break_supported: 1
+break_type: financial_crisis, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 5
+summary: [Global recession and food crisis impacted Jordan's trade in 2009.]"
+Jordan,2010,4,ok,,"break_supported: 1
+break_type: financial_crisis, policy_change
+duration: long_term
+climate_related: 1
+confidence: 4
+summary: Green growth initiative and subsidy reforms following economic crisis."
+Jordan,2011,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [Documents cite macroeconomic stability since 1990s and long-term unemployment.]"
+Jordan,2012,4,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: Documents provide no evidence of a 2012 structural break."
+Jordan,2016,4,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: -99
+confidence: 5
+summary: [Documents provide no evidence for a 2016 structural break.]"
+Jordan,2017,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 2
+summary: [Retrospective on 2013 airport completion; no 2017 structural break.]"
+Jordan,2018,1,ok,,"break_supported: 0
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: Low growth, regional instability, external shocks, slow reforms."
+Jordan,2019,1,ok,,"break_supported: -99
+break_type: policy_change
+duration: within 1 year
+climate_related: -99
+confidence: 1
+summary: Abstract empty; title mentions 2019 agriculture sector adjustment."
+Jordan,2020,3,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: [Policy framework reform, PPP implementation, and gender empowerment plans.]"
+Jordan,2021,3,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 1
+confidence: 4
+summary: COVID-19 recovery, digital finance shift, green energy stimulus."

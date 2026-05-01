@@ -1,0 +1,37 @@
+country,break_year,n_docs,status,error_message,raw_output
+Israel,1999,1,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 1
+summary: [Regional nutrition review; no mention of Israeli structural break.]"
+Israel,2000,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [Focuses on cultural heritage preservation, no macroeconomic break mentioned.]"
+Israel,2008,1,ok,,"break_supported: 1
+break_type: financial_crisis, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Global recession and food crisis impacts analyzed in 2008."
+Israel,2009,1,ok,,"break_supported: 1
+break_type: financial_crisis, external_shock
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: Brief analyzes global recession and food crisis impacts."
+Israel,2010,1,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 2
+summary: Israeli business regulations and reform indicators for 2010."
+Israel,2022,3,ok,,"break_supported: 0
+break_type: 
+duration: 
+climate_related: 0
+confidence: 5
+summary: [No evidence for macroeconomic structural break in provided documents.]"

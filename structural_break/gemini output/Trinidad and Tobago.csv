@@ -1,0 +1,13 @@
+country,break_year,n_docs,status,error_message,raw_output
+Trinidad and Tobago,2015,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: Education report; no evidence of macroeconomic structural break."
+Trinidad and Tobago,2021,1,ok,,"break_supported: -99
+break_type: external_shock
+duration: -99
+climate_related: 0
+confidence: 2
+summary: Gender scorecard highlights pandemic impacts on men and women."

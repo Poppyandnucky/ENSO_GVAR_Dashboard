@@ -1,0 +1,43 @@
+country,break_year,n_docs,status,error_message,raw_output
+Mauritius,2004,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: [Small biodiversity project ended 2001; no 2004 macro evidence.]"
+Mauritius,2006,1,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Losing textile/sugar trade preferences; economic diversification; rising oil prices]"
+Mauritius,2010,4,ok,,"break_supported: 1
+break_type: financial_crisis, policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Accelerated reforms helped avert global financial crisis impacts.]"
+Mauritius,2011,3,ok,,"break_supported: 1
+break_type: policy_change, commodity_or_trade
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [comprehensive structural reforms, trade competitiveness, fiscal consolidation]"
+Mauritius,2012,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 4
+summary: PPIAF report identifies PPP weaknesses and recommends action plan."
+Mauritius,2020,1,ok,,"break_supported: 1
+break_type: external_shock
+duration: within 1 year
+climate_related: 0
+confidence: 4
+summary: COVID-19 outbreak interrupted youth employability and job search training."
+Mauritius,2021,1,ok,,"break_supported: 1
+break_type: external_shock, policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [COVID-19 second outbreak and structural reform for recovery.]"

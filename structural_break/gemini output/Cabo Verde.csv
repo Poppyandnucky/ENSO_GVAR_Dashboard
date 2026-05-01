@@ -1,0 +1,25 @@
+country,break_year,n_docs,status,error_message,raw_output
+Cabo Verde,2010,2,ok,,"break_supported: 1
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 3
+summary: [Business regulation reforms reported as making a difference.]"
+Cabo Verde,2011,2,ok,,"break_supported: 0
+break_type: policy_change
+duration: long_term
+climate_related: 0
+confidence: 4
+summary: [Reform program implemented since 1998; no 2011 break described.]"
+Cabo Verde,2019,2,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: No textual support for 2019 structural break found."
+Cabo Verde,2020,1,ok,,"break_supported: 0
+break_type: -99
+duration: -99
+climate_related: 0
+confidence: 5
+summary: CPIA 2019 brief covers period ending December 2019."
