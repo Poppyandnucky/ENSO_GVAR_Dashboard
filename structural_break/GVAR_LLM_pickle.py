@@ -24,6 +24,7 @@ import matplotlib.dates as mdates
 from matplotlib.backends.backend_pdf import PdfPages
 from pathlib import Path
 import pickle
+import os
 
 try:
     from llm_break_visualization import (
@@ -747,55 +748,23 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-# ---------- Fill these two places ----------
-PATH = "gvar_panel_streamlit (3).csv"          # or .xlsx, change path as needed
+# ---------- Dashboard run configuration ----------
+PATH = str(Path(__file__).resolve().parent.parent / "data" / "gvar_panel_streamlit.csv")
 COUNTRIES = [
-"CHL","MEX","BRA","COL", "AUS", "CAN","NOR","PHL","IND", "THA","IDN", "SWE", "CHE", "NZL",  "DNK"
-"AFG", "ALB", "DZA", "AND", "AGO", "ATG", "ARG", "ARM", "AUS", "AUT",
-"AZE", "BHS", "BHR", "BGD", "BRB", "BLR", "BEL", "BLZ", "BEN", "BTN",
-"BOL", "BIH", "BWA", "BRA", "BRN", "BGR", "BFA", "BDI", "CPV", "KHM",
-"CMR", "CAN", "CAF", "TCD", "CHL", "CHN", "COL", "COM", "COG", "COD",
-"CRI", "CIV", "HRV", "CUB", "CYP", "CZE", "DNK", "DJI", "DMA", "DOM",
-"ECU", "EGY", "SLV", "GNQ", "ERI", "EST", "SWZ", "ETH", "FJI", "FIN",
-"FRA", "GAB", "GMB", "GEO", "DEU", "GHA", "GRC", "GRD", "GTM", "GIN",
-"GNB", "GUY", "HTI", "HND", "HUN", "ISL", "IND", "IDN", "IRN", "IRQ",
-"IRL", "ISR", "ITA", "JAM", "JPN", "JOR", "KAZ", "KEN", "KIR", "KWT",
-"KGZ", "LAO", "LVA", "LBN", "LSO", "LBR", "LBY", "LIE", "LTU", "LUX",
-"MDG", "MWI", "MYS", "MDV", "MLI", "MLT", "MHL", "MRT", "MUS", "MEX",
-"FSM", "MDA", "MCO", "MNG", "MNE", "MAR", "MOZ", "MMR", "NAM", "NRU",
-"NPL", "NLD", "NZL", "NIC", "NER", "NGA", "PRK", "MKD", "NOR", "OMN",
-"PAK", "PLW", "PAN", "PNG", "PRY", "PER", "PHL", "POL", "PRT", "QAT",
-"ROU", "RUS", "RWA", "KNA", "LCA", "VCT", "WSM", "SMR", "STP", "SAU",
-"SEN", "SRB", "SYC", "SLE", "SGP", "SVK", "SVN", "SLB", "SOM", "ZAF",
-"KOR", "SSD", "ESP", "LKA", "SDN", "SUR", "SWE", "CHE", "SYR", "TJK",
-"TZA", "THA", "TLS", "TGO", "TON", "TTO", "TUN", "TUR", "TKM", "TUV",
-"UGA", "UKR", "ARE", "GBR", "USA", "URY", "UZB", "VUT", "VEN", "VNM",
-"YEM", "ZMB", "ZWE"
+    "BRA",
+    "CHL",
+    "COL",
+    "MEX",
+    "KEN",
+    "ZAF",
+    "IND",
+    "IDN",
+    "THA",
+    "PER",
+    "PHL",
 ]
-
-countries_to_run = [
-"CHL","MEX","BRA","COL", "AUS", "CAN","NOR","PHL","IND", "THA","IDN", "SWE", "CHE", "NZL",  "DNK"
-"AFG", "ALB", "DZA", "AND", "AGO", "ATG", "ARG", "ARM", "AUS", "AUT",
-"AZE", "BHS", "BHR", "BGD", "BRB", "BLR", "BEL", "BLZ", "BEN", "BTN",
-"BOL", "BIH", "BWA", "BRA", "BRN", "BGR", "BFA", "BDI", "CPV", "KHM",
-"CMR", "CAN", "CAF", "TCD", "CHL", "CHN", "COL", "COM", "COG", "COD",
-"CRI", "CIV", "HRV", "CUB", "CYP", "CZE", "DNK", "DJI", "DMA", "DOM",
-"ECU", "EGY", "SLV", "GNQ", "ERI", "EST", "SWZ", "ETH", "FJI", "FIN",
-"FRA", "GAB", "GMB", "GEO", "DEU", "GHA", "GRC", "GRD", "GTM", "GIN",
-"GNB", "GUY", "HTI", "HND", "HUN", "ISL", "IND", "IDN", "IRN", "IRQ",
-"IRL", "ISR", "ITA", "JAM", "JPN", "JOR", "KAZ", "KEN", "KIR", "KWT",
-"KGZ", "LAO", "LVA", "LBN", "LSO", "LBR", "LBY", "LIE", "LTU", "LUX",
-"MDG", "MWI", "MYS", "MDV", "MLI", "MLT", "MHL", "MRT", "MUS", "MEX",
-"FSM", "MDA", "MCO", "MNG", "MNE", "MAR", "MOZ", "MMR", "NAM", "NRU",
-"NPL", "NLD", "NZL", "NIC", "NER", "NGA", "PRK", "MKD", "NOR", "OMN",
-"PAK", "PLW", "PAN", "PNG", "PRY", "PER", "PHL", "POL", "PRT", "QAT",
-"ROU", "RUS", "RWA", "KNA", "LCA", "VCT", "WSM", "SMR", "STP", "SAU",
-"SEN", "SRB", "SYC", "SLE", "SGP", "SVK", "SVN", "SLB", "SOM", "ZAF",
-"KOR", "SSD", "ESP", "LKA", "SDN", "SUR", "SWE", "CHE", "SYR", "TJK",
-"TZA", "THA", "TLS", "TGO", "TON", "TTO", "TUN", "TUR", "TKM", "TUV",
-"UGA", "UKR", "ARE", "GBR", "USA", "URY", "UZB", "VUT", "VEN", "VNM",
-"YEM", "ZMB", "ZWE"
-]
+countries_to_run = list(COUNTRIES)
+MAX_EM_ITER = 50
 
 ISO3_TO_COUNTRY = {
     "AFG": "Afghanistan", "ALB": "Albania", "DZA": "Algeria", "AND": "Andorra",
@@ -1026,7 +995,7 @@ def plot_coeff_trajectories_countries_em(
     EXO=None,
     lags=1,
     min_T=None,
-    max_em_iter=8,
+    max_em_iter=MAX_EM_ITER,
     iso3_to_country: dict | None = None,
     pdf: PdfPages | None = None,
 ):
@@ -1154,7 +1123,7 @@ def plot_em_diagnostics_countries(
     EXO=None,
     lags=1,
     min_T=None,
-    max_em_iter=8,
+    max_em_iter=MAX_EM_ITER,
     iso3_to_country: dict | None = None,
     pdf: PdfPages | None = None,
 ):
@@ -1235,7 +1204,7 @@ def plot_em_qr_traces_countries(
     EXO=None,
     lags=1,
     min_T=None,
-    max_em_iter=8,
+    max_em_iter=MAX_EM_ITER,
     iso3_to_country: dict | None = None,
     pdf: PdfPages | None = None,
 ):
@@ -1304,7 +1273,7 @@ def build_em_offline_plot_pack(
     EXO=None,
     lags=1,
     min_T=None,
-    max_em_iter=8,
+    max_em_iter=MAX_EM_ITER,
     iso3_to_country: dict | None = None,
 ):
     """
@@ -1570,620 +1539,665 @@ def plot_offline_breakscore_from_pack(
             _fig_save_or_show(fig, pdf)
 
 
-# Country trajectory plots: full countries_to_run list.
-# Titles/y-axis labels use full names from ISO3_TO_COUNTRY.
-# If non-None, all three plot groups are written into one PDF.
-DASH_INPUT_DIR = Path("Dash_Input")
-DASH_INPUT_DIR.mkdir(parents=True, exist_ok=True)
+if os.environ.get("GVAR_IMPORT_ONLY") != "1":
+    # Country trajectory plots: full countries_to_run list.
+    # Titles/y-axis labels use full names from ISO3_TO_COUNTRY.
+    # If non-None, all three plot groups are written into one PDF.
+    DASH_INPUT_DIR = Path("Dash_Input")
+    DASH_INPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _dash_out(name: str) -> str:
-    return str(DASH_INPUT_DIR / name)
+    def _dash_out(name: str) -> str:
+        return str(DASH_INPUT_DIR / name)
 
 
-PLOTS_PDF_PATH: str | None = _dash_out("GVAR_LLM_EM_plots.pdf")
-RESULTS_PICKLE_PATH = _dash_out("gvar_pipeline_results.pkl")
-COUNTRIES_FOR_COEF_PLOT = list(countries_to_run)
-COUNTRIES_FOR_DIAG_PLOT = list(countries_to_run)
-COUNTRIES_FOR_QR_PLOT = list(countries_to_run)
-_plot_kw = dict(
-    PATH=PATH,
-    COL_COUNTRY=COL_COUNTRY,
-    COL_TIME=COL_TIME,
-    ENDO=ENDO,
-    EXO=EXO,
-    lags=lags,
-    max_em_iter=8,
-    iso3_to_country=ISO3_TO_COUNTRY,
-)
+    PLOTS_PDF_PATH: str | None = _dash_out("GVAR_LLM_EM_plots.pdf")
+    RESULTS_PICKLE_PATH = _dash_out("gvar_pipeline_results.pkl")
+    COUNTRIES_FOR_COEF_PLOT = list(countries_to_run)
+    COUNTRIES_FOR_DIAG_PLOT = list(countries_to_run)
+    COUNTRIES_FOR_QR_PLOT = list(countries_to_run)
+    _plot_kw = dict(
+        PATH=PATH,
+        COL_COUNTRY=COL_COUNTRY,
+        COL_TIME=COL_TIME,
+        ENDO=ENDO,
+        EXO=EXO,
+        lags=lags,
+        max_em_iter=MAX_EM_ITER,
+        iso3_to_country=ISO3_TO_COUNTRY,
+    )
 
 
-def _map_llm_country_to_iso3(llm_df: pd.DataFrame, iso3_to_country: dict) -> pd.DataFrame:
-    """Map country names in LLM table (full name / ISO3 mixed) into ISO3 codes."""
-    out = llm_df.copy()
-    rev = {str(v).strip().lower(): k for k, v in iso3_to_country.items()}
+    def _map_llm_country_to_iso3(llm_df: pd.DataFrame, iso3_to_country: dict) -> pd.DataFrame:
+        """Map country names in LLM table (full name / ISO3 mixed) into ISO3 codes."""
+        out = llm_df.copy()
+        rev = {str(v).strip().lower(): k for k, v in iso3_to_country.items()}
 
-    def _one(v):
-        s = str(v).strip()
-        su = s.upper()
-        if su in iso3_to_country:
-            return su
-        return rev.get(s.lower(), s)
+        def _one(v):
+            s = str(v).strip()
+            su = s.upper()
+            if su in iso3_to_country:
+                return su
+            return rev.get(s.lower(), s)
 
-    out["country"] = out["country"].apply(_one)
-    return out
+        out["country"] = out["country"].apply(_one)
+        return out
 
 
-def build_em_break_score_panel(
-    PATH,
-    COUNTRIES,
-    COL_COUNTRY="country",
-    COL_TIME="quarter",
-    ENDO=None,
-    EXO=None,
-    lags=1,
-    min_T=None,
-    max_em_iter=8,
-) -> pd.DataFrame:
-    """
-    Build a quarterly break-score panel from run_kf_em innovation_score.
-    Output columns: country, quarter, year, score
-    """
-    if ENDO is None:
-        ENDO = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
-    if EXO is None:
-        EXO = ["COMMODITY_YoY", "ENSO"]
-    if min_T is None:
-        min_T = lags + 5
+    def build_em_break_score_panel(
+        PATH,
+        COUNTRIES,
+        COL_COUNTRY="country",
+        COL_TIME="quarter",
+        ENDO=None,
+        EXO=None,
+        lags=1,
+        min_T=None,
+        max_em_iter=MAX_EM_ITER,
+    ) -> pd.DataFrame:
+        """
+        Build a quarterly break-score panel from run_kf_em innovation_score.
+        Output columns: country, quarter, year, score
+        """
+        if ENDO is None:
+            ENDO = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
+        if EXO is None:
+            EXO = ["COMMODITY_YoY", "ENSO"]
+        if min_T is None:
+            min_T = lags + 5
 
-    df = _load_panel_df_cached(PATH, COL_COUNTRY, COL_TIME)
+        df = _load_panel_df_cached(PATH, COL_COUNTRY, COL_TIME)
 
-    ENDO_use = [c for c in ENDO if c in df.columns and df[c].notna().any()]
-    EXO_use = [c for c in EXO if c in df.columns and df[c].notna().any()]
-    rows = []
+        ENDO_use = [c for c in ENDO if c in df.columns and df[c].notna().any()]
+        EXO_use = [c for c in EXO if c in df.columns and df[c].notna().any()]
+        rows = []
 
-    for country in COUNTRIES:
-        prep, res = _run_kf_em_cached(
-            PATH=PATH,
-            country=country,
-            COL_COUNTRY=COL_COUNTRY,
-            COL_TIME=COL_TIME,
-            ENDO=ENDO_use,
-            EXO=EXO_use,
-            lags=lags,
-            min_T=min_T,
-            max_em_iter=max_em_iter,
-            exo_mode="all",
-        )
-        if prep is None or res is None:
-            continue
-        g = prep["g"]
+        for country in COUNTRIES:
+            prep, res = _run_kf_em_cached(
+                PATH=PATH,
+                country=country,
+                COL_COUNTRY=COL_COUNTRY,
+                COL_TIME=COL_TIME,
+                ENDO=ENDO_use,
+                EXO=EXO_use,
+                lags=lags,
+                min_T=min_T,
+                max_em_iter=max_em_iter,
+                exo_mode="all",
+            )
+            if prep is None or res is None:
+                continue
+            g = prep["g"]
 
-        innov = np.asarray(res.get("innovation_score"), dtype=float)
-        if innov.shape[0] != len(g):
-            continue
+            innov = np.asarray(res.get("innovation_score"), dtype=float)
+            if innov.shape[0] != len(g):
+                continue
 
-        q = pd.to_datetime(g[COL_TIME].values)
-        for qt, sc in zip(q, innov):
-            rows.append(
-                {
-                    "country": country,
-                    "quarter": qt,
-                    "year": int(pd.Timestamp(qt).year),
-                    "score": float(sc) if np.isfinite(sc) else np.nan,
-                }
+            q = pd.to_datetime(g[COL_TIME].values)
+            for qt, sc in zip(q, innov):
+                rows.append(
+                    {
+                        "country": country,
+                        "quarter": qt,
+                        "year": int(pd.Timestamp(qt).year),
+                        "score": float(sc) if np.isfinite(sc) else np.nan,
+                    }
+                )
+
+        return pd.DataFrame(rows)
+
+
+    def build_em_composite_break_score_panel(
+        PATH,
+        COUNTRIES,
+        COL_COUNTRY="country",
+        COL_TIME="quarter",
+        ENDO=None,
+        EXO=None,
+        lags=1,
+        min_T=None,
+        max_em_iter=MAX_EM_ITER,
+    ):
+        """
+        Build quarter-level panel with standardized diagnostics and composite score:
+        composite_score = (z_innovation + z_coef_change + z_filter_smoother_gap) / 3
+        """
+        if ENDO is None:
+            ENDO = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
+        if EXO is None:
+            EXO = ["COMMODITY_YoY", "ENSO"]
+        if min_T is None:
+            min_T = lags + 5
+
+        df = _load_panel_df_cached(PATH, COL_COUNTRY, COL_TIME)
+
+        ENDO_use = [c for c in ENDO if c in df.columns and df[c].notna().any()]
+        EXO_use = [c for c in EXO if c in df.columns and df[c].notna().any()]
+        if not ENDO_use or not EXO_use:
+            return pd.DataFrame(
+                columns=[
+                    "country",
+                    "quarter",
+                    "year",
+                    "innovation_score",
+                    "coefficient_change",
+                    "filter_smoother_gap",
+                    "z_innovation_score",
+                    "z_coefficient_change",
+                    "z_filter_smoother_gap",
+                    "composite_score",
+                ]
             )
 
-    return pd.DataFrame(rows)
+        def _safe_z(a: np.ndarray) -> np.ndarray:
+            x = np.asarray(a, dtype=float)
+            mu = np.nanmean(x)
+            sd = np.nanstd(x)
+            if not np.isfinite(sd) or sd < 1e-12:
+                return np.zeros_like(x, dtype=float)
+            return (x - mu) / sd
+
+        rows: list[dict] = []
+        for country in COUNTRIES:
+            prep, res = _run_kf_em_cached(
+                PATH=PATH,
+                country=country,
+                COL_COUNTRY=COL_COUNTRY,
+                COL_TIME=COL_TIME,
+                ENDO=ENDO_use,
+                EXO=EXO_use,
+                lags=lags,
+                min_T=min_T,
+                max_em_iter=max_em_iter,
+                exo_mode="all",
+            )
+            if prep is None or res is None:
+                continue
+            g = prep["g"]
+
+            innov = np.asarray(res.get("innovation_score"), dtype=float)
+            dcoef = np.asarray(res.get("coefficient_change"), dtype=float)
+            fsgap = np.asarray(res.get("filter_smoother_gap"), dtype=float)
+            if len(innov) != len(g) or len(dcoef) != len(g) or len(fsgap) != len(g):
+                continue
+
+            z_innov = _safe_z(innov)
+            z_dcoef = _safe_z(dcoef)
+            z_fsgap = _safe_z(fsgap)
+            comp = (z_innov + z_dcoef + z_fsgap) / 3.0
+
+            for qt, a, b, c, za, zb, zc, sc in zip(
+                g[COL_TIME].values, innov, dcoef, fsgap, z_innov, z_dcoef, z_fsgap, comp
+            ):
+                rows.append(
+                    {
+                        "country": country,
+                        "quarter": pd.Timestamp(qt),
+                        "year": int(pd.Timestamp(qt).year),
+                        "innovation_score": float(a) if np.isfinite(a) else np.nan,
+                        "coefficient_change": float(b) if np.isfinite(b) else np.nan,
+                        "filter_smoother_gap": float(c) if np.isfinite(c) else np.nan,
+                        "z_innovation_score": float(za) if np.isfinite(za) else np.nan,
+                        "z_coefficient_change": float(zb) if np.isfinite(zb) else np.nan,
+                        "z_filter_smoother_gap": float(zc) if np.isfinite(zc) else np.nan,
+                        "composite_score": float(sc) if np.isfinite(sc) else np.nan,
+                    }
+                )
+
+        return pd.DataFrame(rows)
 
 
-def build_em_composite_break_score_panel(
-    PATH,
-    COUNTRIES,
-    COL_COUNTRY="country",
-    COL_TIME="quarter",
-    ENDO=None,
-    EXO=None,
-    lags=1,
-    min_T=None,
-    max_em_iter=8,
-):
-    """
-    Build quarter-level panel with standardized diagnostics and composite score:
-    composite_score = (z_innovation + z_coef_change + z_filter_smoother_gap) / 3
-    """
-    if ENDO is None:
-        ENDO = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
-    if EXO is None:
-        EXO = ["COMMODITY_YoY", "ENSO"]
-    if min_T is None:
-        min_T = lags + 5
+    def build_llm_input_candidates_from_composite(
+        composite_df: pd.DataFrame,
+        country_col: str = "country",
+        year_col: str = "year",
+        score_col: str = "composite_score",
+        top_k_peaks: int = 4,
+    ) -> list[dict]:
+        """
+        Build LLM input list:
+        [
+            {"country": "CHL", "years": [...]},
+            ...
+        ]
+        """
+        if composite_df is None or composite_df.empty:
+            return []
 
-    df = _load_panel_df_cached(PATH, COL_COUNTRY, COL_TIME)
+        df = composite_df.dropna(subset=[country_col, year_col, score_col]).copy()
+        if df.empty:
+            return []
 
-    ENDO_use = [c for c in ENDO if c in df.columns and df[c].notna().any()]
-    EXO_use = [c for c in EXO if c in df.columns and df[c].notna().any()]
-    if not ENDO_use or not EXO_use:
-        return pd.DataFrame(
-            columns=[
-                "country",
-                "quarter",
-                "year",
-                "innovation_score",
-                "coefficient_change",
-                "filter_smoother_gap",
-                "z_innovation_score",
-                "z_coefficient_change",
-                "z_filter_smoother_gap",
-                "composite_score",
-            ]
-        )
+        out: list[dict] = []
+        for country, g in df.groupby(country_col):
+            ys = (
+                g.groupby(year_col, as_index=False)[score_col]
+                .max()
+                .sort_values(year_col)
+                .reset_index(drop=True)
+            )
+            if ys.empty:
+                out.append({"country": country, "years": []})
+                continue
 
-    def _safe_z(a: np.ndarray) -> np.ndarray:
-        x = np.asarray(a, dtype=float)
-        mu = np.nanmean(x)
-        sd = np.nanstd(x)
-        if not np.isfinite(sd) or sd < 1e-12:
-            return np.zeros_like(x, dtype=float)
-        return (x - mu) / sd
+            s_prev = ys[score_col].shift(1)
+            s_next = ys[score_col].shift(-1)
+            peak_mask = (ys[score_col] > s_prev) & (ys[score_col] > s_next)
+            peaks = ys.loc[peak_mask].copy()
+            if peaks.empty:
+                out.append({"country": country, "years": []})
+                continue
 
-    rows: list[dict] = []
-    for country in COUNTRIES:
-        prep, res = _run_kf_em_cached(
+            top_peaks = peaks.nlargest(top_k_peaks, score_col)
+            cand_years: set[int] = set()
+            for y in top_peaks[year_col].astype(int).tolist():
+                cand_years.update([y - 1, y, y + 1])
+
+            out.append({"country": country, "years": sorted(cand_years)})
+
+        return out
+
+
+    # ============================================================
+    # LLM integration: break-score overlay + summary charts + time-slice maps
+    # ============================================================
+    ENABLE_LLM_INTEGRATION = True
+    LLM_RESULTS_CSV = "merged_clean_dataset.csv"  # replace with your prepared CSV
+    SHOW_LLM_BREAK_OVERLAY = True
+    LLM_OVERLAY_FIG_PATH = _dash_out("gvar_breakscore_llm_overlay.png")
+    LLM_STATS_FIG_PATH = _dash_out("gvar_llm_stats.png")
+    LLM_MAP_OUTPUT_DIR = _dash_out("gvar_llm_time_slice_maps")
+    INPUT_LLM_PICKLE_PATH = _dash_out("input_LLM.pkl")
+
+    pickle_bundle: dict = {
+        "config": {
+            "PATH": PATH,
+            "COUNTRIES_FOR_COEF_PLOT": COUNTRIES_FOR_COEF_PLOT,
+            "COUNTRIES_FOR_DIAG_PLOT": COUNTRIES_FOR_DIAG_PLOT,
+            "COUNTRIES_FOR_QR_PLOT": COUNTRIES_FOR_QR_PLOT,
+            "PLOTS_PDF_PATH": PLOTS_PDF_PATH,
+            "plot_kw": _plot_kw,
+            "COL_COUNTRY": COL_COUNTRY,
+            "COL_TIME": COL_TIME,
+            "ENDO": ENDO,
+            "EXO": EXO,
+            "lags": lags,
+            "max_em_iter": MAX_EM_ITER,
+            "iso3_to_country": ISO3_TO_COUNTRY,
+            "SHOW_LLM_BREAK_OVERLAY": SHOW_LLM_BREAK_OVERLAY,
+            "LLM_OVERLAY_FIG_PATH": LLM_OVERLAY_FIG_PATH,
+            "LLM_STATS_FIG_PATH": LLM_STATS_FIG_PATH,
+            "LLM_MAP_OUTPUT_DIR": LLM_MAP_OUTPUT_DIR,
+        }
+    }
+
+    # Build offline plotting data (base path) so pickle can render without rerun.
+    pickle_bundle["offline_plot_data"] = {
+        "base": build_em_offline_plot_pack(
             PATH=PATH,
-            country=country,
+            COUNTRIES=COUNTRIES_FOR_COEF_PLOT,
             COL_COUNTRY=COL_COUNTRY,
             COL_TIME=COL_TIME,
-            ENDO=ENDO_use,
-            EXO=EXO_use,
+            ENDO=ENDO,
+            EXO=EXO,
             lags=lags,
-            min_T=min_T,
-            max_em_iter=max_em_iter,
-            exo_mode="all",
+            max_em_iter=MAX_EM_ITER,
+            iso3_to_country=ISO3_TO_COUNTRY,
         )
-        if prep is None or res is None:
-            continue
-        g = prep["g"]
+    }
 
-        innov = np.asarray(res.get("innovation_score"), dtype=float)
-        dcoef = np.asarray(res.get("coefficient_change"), dtype=float)
-        fsgap = np.asarray(res.get("filter_smoother_gap"), dtype=float)
-        if len(innov) != len(g) or len(dcoef) != len(g) or len(fsgap) != len(g):
-            continue
+    if ENABLE_LLM_INTEGRATION:
+        if not _HAS_LLM_VIS:
+            print("[WARN] skip LLM integration: llm_break_visualization not available")
+        elif not Path(LLM_RESULTS_CSV).exists():
+            print(f"[WARN] skip LLM integration: file not found -> {LLM_RESULTS_CSV}")
+        else:
+            llm_raw_df = pd.read_csv(LLM_RESULTS_CSV)
+            llm_df = _map_llm_country_to_iso3(llm_raw_df, ISO3_TO_COUNTRY)
+            llm_df = llm_df[llm_df["country"].isin(list(countries_to_run))].copy()
+            manual_rows = []
+            for _country in ["IND", "IDN"]:
+                for _year in [2020, 2021, 2022]:
+                    manual_rows.append(
+                        {
+                            "country": _country,
+                            "break_year": _year,
+                            "n_docs": 0,
+                            "status": "manual",
+                            "error_message": np.nan,
+                            "raw_output": (
+                                "break_supported: 1\n"
+                                "break_type: climate_shock, enso\n"
+                                "duration: 3 year\n"
+                                "climate_related: 1\n"
+                                "confidence: 5\n"
+                                "summary: Manual ENSO break-year overlay for QR experiment."
+                            ),
+                            "source_file": "manual_enso_breaks",
+                            "break_supported": 1,
+                            "confidence": 5,
+                            "break_type": "climate_shock, enso",
+                            "duration": "3 year",
+                            "climate_related": 1,
+                            "summary": "Manual ENSO break-year overlay for QR experiment.",
+                        }
+                    )
+            if manual_rows:
+                for _col in ["duration", "climate_related"]:
+                    if _col not in llm_df.columns:
+                        llm_df[_col] = np.nan
+                _manual_keys = {(_r["country"], _r["break_year"]) for _r in manual_rows}
+                llm_df = (
+                    pd.concat([llm_df, pd.DataFrame(manual_rows)], ignore_index=True)
+                    .assign(
+                        _manual_rank=lambda _d: [
+                            1 if (str(_r.country).upper(), int(_r.break_year)) in _manual_keys else 0
+                            for _r in _d[["country", "break_year"]].itertuples(index=False)
+                        ]
+                    )
+                    .sort_values(["country", "break_year", "_manual_rank"])
+                    .drop_duplicates(["country", "break_year"], keep="last")
+                    .drop(columns=["_manual_rank"])
+                    .reset_index(drop=True)
+                )
+            print(f"[INFO] LLM matched rows: {len(llm_df)}")
 
-        z_innov = _safe_z(innov)
-        z_dcoef = _safe_z(dcoef)
-        z_fsgap = _safe_z(fsgap)
-        comp = (z_innov + z_dcoef + z_fsgap) / 3.0
-
-        for qt, a, b, c, za, zb, zc, sc in zip(
-            g[COL_TIME].values, innov, dcoef, fsgap, z_innov, z_dcoef, z_fsgap, comp
-        ):
-            rows.append(
-                {
-                    "country": country,
-                    "quarter": pd.Timestamp(qt),
-                    "year": int(pd.Timestamp(qt).year),
-                    "innovation_score": float(a) if np.isfinite(a) else np.nan,
-                    "coefficient_change": float(b) if np.isfinite(b) else np.nan,
-                    "filter_smoother_gap": float(c) if np.isfinite(c) else np.nan,
-                    "z_innovation_score": float(za) if np.isfinite(za) else np.nan,
-                    "z_coefficient_change": float(zb) if np.isfinite(zb) else np.nan,
-                    "z_filter_smoother_gap": float(zc) if np.isfinite(zc) else np.nan,
-                    "composite_score": float(sc) if np.isfinite(sc) else np.nan,
-                }
+            break_score_df = build_em_break_score_panel(
+                PATH=PATH,
+                COUNTRIES=list(countries_to_run),
+                COL_COUNTRY=COL_COUNTRY,
+                COL_TIME=COL_TIME,
+                ENDO=ENDO,
+                EXO=EXO,
+                lags=lags,
+                max_em_iter=MAX_EM_ITER,
             )
+            break_score_df = break_score_df.dropna(subset=["score"]).copy()
+            print(f"[INFO] break_score rows: {len(break_score_df)}")
 
-    return pd.DataFrame(rows)
+            composite_break_df = build_em_composite_break_score_panel(
+                PATH=PATH,
+                COUNTRIES=list(countries_to_run),
+                COL_COUNTRY=COL_COUNTRY,
+                COL_TIME=COL_TIME,
+                ENDO=ENDO,
+                EXO=EXO,
+                lags=lags,
+                max_em_iter=MAX_EM_ITER,
+            )
+            llm_input_list = build_llm_input_candidates_from_composite(
+                composite_df=composite_break_df,
+                country_col="country",
+                year_col="year",
+                score_col="composite_score",
+                top_k_peaks=4,
+            )
+            with open(INPUT_LLM_PICKLE_PATH, "wb") as _f_llm_input:
+                pickle.dump(llm_input_list, _f_llm_input)
+
+            # Persist data first; visualization is optional.
+            pickle_bundle["llm_integration"] = {
+                "llm_df": llm_df,
+                "break_score_df": break_score_df,
+                "composite_break_df": composite_break_df,
+                "input_llm_list": llm_input_list,
+                "input_llm_pickle_path": INPUT_LLM_PICKLE_PATH,
+            }
+
+            # Task 3 input prep: yearly map source data
+            score_year_df = (
+                break_score_df.groupby(["country", "year"], as_index=False)["score"]
+                .mean()
+                .rename(columns={"score": "score"})
+            )
+            pickle_bundle["llm_integration"]["score_year_df"] = score_year_df
 
 
-def build_llm_input_candidates_from_composite(
-    composite_df: pd.DataFrame,
-    country_col: str = "country",
-    year_col: str = "year",
-    score_col: str = "composite_score",
-    top_k_peaks: int = 4,
-) -> list[dict]:
-    """
-    Build LLM input list:
-    [
-        {"country": "CHL", "years": [...]},
-        ...
-    ]
-    """
-    if composite_df is None or composite_df.empty:
-        return []
 
-    df = composite_df.dropna(subset=[country_col, year_col, score_col]).copy()
-    if df.empty:
-        return []
+    def plot_breakscore_countries_em(
+        PATH,
+        COUNTRIES,
+        COL_COUNTRY="country",
+        COL_TIME="quarter",
+        ENDO=None,
+        EXO=None,
+        lags=1,
+        max_em_iter=MAX_EM_ITER,
+        drop_quarters_dict: dict[str, list[pd.Timestamp]] | None = None,
+        iso3_to_country: dict | None = None,
+        pdf: PdfPages | None = None,
+        save_dir: str | None = None,
+    ):
+        """Plot per-country break score trajectories from EM innovation score.
+        If drop_quarters_dict is provided, those quarters are removed before plotting.
+        """
+        bs = build_em_break_score_panel(
+            PATH=PATH,
+            COUNTRIES=COUNTRIES,
+            COL_COUNTRY=COL_COUNTRY,
+            COL_TIME=COL_TIME,
+            ENDO=ENDO,
+            EXO=EXO,
+            lags=lags,
+            max_em_iter=max_em_iter,
+        ).dropna(subset=["score"])
+        if bs.empty:
+            print("[WARN] break score panel empty; skip breakscore plot")
+            return
 
-    out: list[dict] = []
-    for country, g in df.groupby(country_col):
-        ys = (
-            g.groupby(year_col, as_index=False)[score_col]
-            .max()
-            .sort_values(year_col)
+        for country in COUNTRIES:
+            g = bs[bs["country"] == country].copy()
+            if drop_quarters_dict and country in drop_quarters_dict:
+                drop_q = set(pd.to_datetime(drop_quarters_dict[country]))
+                g = g[~pd.to_datetime(g["quarter"]).isin(drop_q)].copy()
+            if g.empty:
+                continue
+            cname = country_display_name(country, iso3_to_country)
+            quarters = pd.to_datetime(g["quarter"].values)
+            vals = g["score"].to_numpy(float)
+            plt.figure(figsize=(12, 4.8))
+            plt.plot(quarters, vals, color="black", linewidth=1.2)
+            plt.title(f"{cname} — Break score (innovation)")
+            plt.xlabel("Quarter")
+            plt.ylabel("score")
+            ax = plt.gca()
+            style_quarter_axis_every_four_quarters(ax)
+            ax.grid(True, which="major", axis="y", alpha=0.25)
+            plt.tight_layout()
+            fig = plt.gcf()
+            if save_dir:
+                out_dir = Path(save_dir)
+                out_dir.mkdir(parents=True, exist_ok=True)
+                fig.savefig(out_dir / f"breakscore_{country}.jpg", dpi=150, bbox_inches="tight")
+                plt.close(fig)
+            else:
+                _fig_save_or_show(fig, pdf)
+
+
+    def build_drop_quarters_dict_from_llm_points(
+        base_path: str,
+        llm_csv: str,
+        countries: list[str],
+        near_break_years: int = 2,
+        top_score_k: int = 5,
+    ) -> tuple[dict[str, list[pd.Timestamp]], pd.DataFrame]:
+        """Build country->quarters-to-drop dictionary from top-k score + LLM break-year rule."""
+        if not Path(llm_csv).exists():
+            print(f"[WARN] skip refit filter: file not found -> {llm_csv}")
+            return {}, pd.DataFrame(columns=["country", "quarter", "year", "score"])
+
+        llm_raw = pd.read_csv(llm_csv)
+        llm = _map_llm_country_to_iso3(llm_raw, ISO3_TO_COUNTRY)
+        llm = llm[llm["country"].isin(countries)].copy()
+        if "break_supported" not in llm.columns or "break_year" not in llm.columns:
+            print("[WARN] skip refit filter: missing break_supported/break_year")
+            return {}, pd.DataFrame(columns=["country", "quarter", "year", "score"])
+
+        llm["break_year"] = pd.to_numeric(llm["break_year"], errors="coerce")
+        llm = llm.dropna(subset=["break_year"]).copy()
+        llm["break_year"] = llm["break_year"].astype(int)
+        llm["break_supported_bin"] = (
+            llm["break_supported"]
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            .map({"1": 1, "true": 1, "yes": 1, "0": 0, "false": 0, "no": 0})
+            .fillna(0)
+            .astype(int)
+        )
+
+        score_df = build_em_break_score_panel(
+            PATH=base_path,
+            COUNTRIES=countries,
+            COL_COUNTRY=COL_COUNTRY,
+            COL_TIME=COL_TIME,
+            ENDO=ENDO,
+            EXO=EXO,
+            lags=lags,
+            max_em_iter=MAX_EM_ITER,
+        ).dropna(subset=["score"])
+        if score_df.empty:
+            print("[WARN] skip refit filter: break score panel empty")
+            return {}, pd.DataFrame(columns=["country", "quarter", "year", "score"])
+
+        topk = (
+            score_df.groupby("country", group_keys=False)
+            .apply(lambda g: g.nlargest(top_score_k, "score"))
             .reset_index(drop=True)
         )
-        if ys.empty:
-            out.append({"country": country, "years": []})
-            continue
-
-        s_prev = ys[score_col].shift(1)
-        s_next = ys[score_col].shift(-1)
-        peak_mask = (ys[score_col] > s_prev) & (ys[score_col] > s_next)
-        peaks = ys.loc[peak_mask].copy()
-        if peaks.empty:
-            out.append({"country": country, "years": []})
-            continue
-
-        top_peaks = peaks.nlargest(top_k_peaks, score_col)
-        cand_years: set[int] = set()
-        for y in top_peaks[year_col].astype(int).tolist():
-            cand_years.update([y - 1, y, y + 1])
-
-        out.append({"country": country, "years": sorted(cand_years)})
-
-    return out
-
-
-# ============================================================
-# LLM integration: break-score overlay + summary charts + time-slice maps
-# ============================================================
-ENABLE_LLM_INTEGRATION = True
-LLM_RESULTS_CSV = "merged_clean_dataset.csv"  # replace with your prepared CSV
-SHOW_LLM_BREAK_OVERLAY = True
-LLM_OVERLAY_FIG_PATH = _dash_out("gvar_breakscore_llm_overlay.png")
-LLM_STATS_FIG_PATH = _dash_out("gvar_llm_stats.png")
-LLM_MAP_OUTPUT_DIR = _dash_out("gvar_llm_time_slice_maps")
-INPUT_LLM_PICKLE_PATH = _dash_out("input_LLM.pkl")
-
-pickle_bundle: dict = {
-    "config": {
-        "PATH": PATH,
-        "COUNTRIES_FOR_COEF_PLOT": COUNTRIES_FOR_COEF_PLOT,
-        "COUNTRIES_FOR_DIAG_PLOT": COUNTRIES_FOR_DIAG_PLOT,
-        "COUNTRIES_FOR_QR_PLOT": COUNTRIES_FOR_QR_PLOT,
-        "PLOTS_PDF_PATH": PLOTS_PDF_PATH,
-        "plot_kw": _plot_kw,
-        "COL_COUNTRY": COL_COUNTRY,
-        "COL_TIME": COL_TIME,
-        "ENDO": ENDO,
-        "EXO": EXO,
-        "lags": lags,
-        "max_em_iter": 8,
-        "iso3_to_country": ISO3_TO_COUNTRY,
-        "SHOW_LLM_BREAK_OVERLAY": SHOW_LLM_BREAK_OVERLAY,
-        "LLM_OVERLAY_FIG_PATH": LLM_OVERLAY_FIG_PATH,
-        "LLM_STATS_FIG_PATH": LLM_STATS_FIG_PATH,
-        "LLM_MAP_OUTPUT_DIR": LLM_MAP_OUTPUT_DIR,
-    }
-}
-
-# Build offline plotting data (base path) so pickle can render without rerun.
-pickle_bundle["offline_plot_data"] = {
-    "base": build_em_offline_plot_pack(
-        PATH=PATH,
-        COUNTRIES=COUNTRIES_FOR_COEF_PLOT,
-        COL_COUNTRY=COL_COUNTRY,
-        COL_TIME=COL_TIME,
-        ENDO=ENDO,
-        EXO=EXO,
-        lags=lags,
-        max_em_iter=8,
-        iso3_to_country=ISO3_TO_COUNTRY,
-    )
-}
-
-if ENABLE_LLM_INTEGRATION:
-    if not _HAS_LLM_VIS:
-        print("[WARN] skip LLM integration: llm_break_visualization not available")
-    elif not Path(LLM_RESULTS_CSV).exists():
-        print(f"[WARN] skip LLM integration: file not found -> {LLM_RESULTS_CSV}")
-    else:
-        llm_raw_df = pd.read_csv(LLM_RESULTS_CSV)
-        llm_df = _map_llm_country_to_iso3(llm_raw_df, ISO3_TO_COUNTRY)
-        llm_df = llm_df[llm_df["country"].isin(list(countries_to_run))].copy()
-        print(f"[INFO] LLM matched rows: {len(llm_df)}")
-
-        break_score_df = build_em_break_score_panel(
-            PATH=PATH,
-            COUNTRIES=list(countries_to_run),
-            COL_COUNTRY=COL_COUNTRY,
-            COL_TIME=COL_TIME,
-            ENDO=ENDO,
-            EXO=EXO,
-            lags=lags,
-            max_em_iter=8,
+        supported_years = (
+            llm[llm["break_supported_bin"] == 1]
+            .groupby("country")["break_year"]
+            .apply(list)
+            .to_dict()
         )
-        break_score_df = break_score_df.dropna(subset=["score"]).copy()
-        print(f"[INFO] break_score rows: {len(break_score_df)}")
 
-        composite_break_df = build_em_composite_break_score_panel(
-            PATH=PATH,
-            COUNTRIES=list(countries_to_run),
-            COL_COUNTRY=COL_COUNTRY,
-            COL_TIME=COL_TIME,
-            ENDO=ENDO,
-            EXO=EXO,
-            lags=lags,
-            max_em_iter=8,
-        )
-        llm_input_list = build_llm_input_candidates_from_composite(
-            composite_df=composite_break_df,
-            country_col="country",
-            year_col="year",
-            score_col="composite_score",
-            top_k_peaks=4,
-        )
-        with open(INPUT_LLM_PICKLE_PATH, "wb") as _f_llm_input:
-            pickle.dump(llm_input_list, _f_llm_input)
+        drop_rows = []
+        for r in topk.itertuples(index=False):
+            years = supported_years.get(r.country, [])
+            if any(abs(int(r.year) - int(y)) <= near_break_years for y in years):
+                drop_rows.append(
+                    {
+                        "country": r.country,
+                        "quarter": pd.Timestamp(r.quarter),
+                        "year": int(r.year),
+                        "score": float(r.score),
+                    }
+                )
+        if not drop_rows:
+            print("[INFO] no points matched condition; keep original panel")
+            return {}, pd.DataFrame(columns=["country", "quarter", "year", "score"])
 
-        # Persist data first; visualization is optional.
-        pickle_bundle["llm_integration"] = {
-            "llm_df": llm_df,
-            "break_score_df": break_score_df,
-            "composite_break_df": composite_break_df,
-            "input_llm_list": llm_input_list,
-            "input_llm_pickle_path": INPUT_LLM_PICKLE_PATH,
+        drop_df = pd.DataFrame(drop_rows).drop_duplicates(subset=["country", "quarter"]).copy()
+        drop_df["quarter"] = pd.to_datetime(drop_df["quarter"])
+
+        # Aggressive expansion: drop the whole year (all 4 quarters) for matched points.
+        expanded_rows = []
+        for r in drop_df.itertuples(index=False):
+            y = int(r.year)
+            for qn in (1, 2, 3, 4):
+                q = pd.Period(f"{y}Q{qn}", freq="Q").to_timestamp("Q")
+                expanded_rows.append(
+                    {
+                        "country": r.country,
+                        "quarter": q,
+                        "year": y,
+                        "score": float(r.score),
+                    }
+                )
+        drop_df = pd.DataFrame(expanded_rows).drop_duplicates(subset=["country", "quarter"]).copy()
+
+        drop_quarters_dict = (
+            drop_df.groupby("country")["quarter"]
+            .apply(lambda s: sorted(set(pd.to_datetime(s).tolist())))
+            .to_dict()
+        )
+        return drop_quarters_dict, drop_df
+
+
+    def build_filtered_panel_from_llm_points(
+        base_path: str,
+        out_filtered_csv: str,
+        drop_quarters_dict: dict[str, list[pd.Timestamp]] | None = None,
+        exclude_years: list[int] | None = None,
+    ) -> str:
+        """Drop rows by precomputed country->quarter dict and return filtered panel path.
+        Note: actual filtering is done by (country, year) to avoid timestamp alignment issues.
+        """
+        if not drop_quarters_dict:
+            return base_path
+
+        src = pd.read_csv(base_path)
+        src[COL_TIME] = pd.to_datetime(src[COL_TIME], errors="coerce")
+        src["_drop_year"] = src[COL_TIME].dt.year
+        key_rows = []
+        for c, q_list in drop_quarters_dict.items():
+            for q in q_list:
+                key_rows.append({COL_COUNTRY: c, "_drop_year": int(pd.Timestamp(q).year)})
+        key = pd.DataFrame(key_rows).drop_duplicates()
+        if key.empty:
+            return base_path
+
+        out = src.merge(key.assign(_drop=1), on=[COL_COUNTRY, "_drop_year"], how="left")
+        out = out[out["_drop"].isna()].copy()
+        if exclude_years:
+            ex_years = set(int(y) for y in exclude_years)
+            out = out[~out["_drop_year"].isin(ex_years)].copy()
+        out = out.drop(columns=["_drop", "_drop_year"])
+        out.to_csv(out_filtered_csv, index=False)
+        print(f"[SAVE] {out_filtered_csv} (dropped={len(src)-len(out)})")
+        return out_filtered_csv
+
+
+    # Extra pass only: drop points then rerun KF/EM and export coeff + breakscore PDF.
+    ENABLE_LLM_REFIT_PDF = False
+    PLOTS_REFIT_PDF_PATH: str | None = _dash_out("GVAR_LLM_EM_plots_refit.pdf")
+    DROP_POINTS_LIST_CSV = _dash_out("llm_top5_near_break_points_to_drop.csv")
+    REFIT_PANEL_CSV = _dash_out("gvar_panel_refit_filtered.csv")
+    TOP_SCORE_K = 5
+    NEAR_BREAK_YEARS = 2
+    REFIT_EXCLUDE_YEARS = [2020,2021,2022,2023]
+    BREAKSCORE_OUTPUT_MODE = "pdf"   # "pdf" | "plot" | "jpg"
+    BREAKSCORE_JPG_DIR = _dash_out("breakscore_jpg")
+
+    if ENABLE_LLM_REFIT_PDF:
+        drop_quarters_dict, drop_df = build_drop_quarters_dict_from_llm_points(
+            base_path=PATH,
+            llm_csv=LLM_RESULTS_CSV,
+            countries=list(countries_to_run),
+            near_break_years=NEAR_BREAK_YEARS,
+            top_score_k=TOP_SCORE_K,
+        )
+        if not drop_df.empty:
+            drop_df.to_csv(DROP_POINTS_LIST_CSV, index=False)
+            print(f"[SAVE] {DROP_POINTS_LIST_CSV} (n={len(drop_df)})")
+        refit_path = build_filtered_panel_from_llm_points(
+            base_path=PATH,
+            out_filtered_csv=REFIT_PANEL_CSV,
+            drop_quarters_dict=drop_quarters_dict,
+            exclude_years=REFIT_EXCLUDE_YEARS,
+        )
+        refit_kw = dict(_plot_kw)
+        refit_kw["PATH"] = refit_path
+        pickle_bundle["refit"] = {
+            "drop_quarters_dict": drop_quarters_dict,
+            "drop_df": drop_df,
+            "refit_path": refit_path,
+            "BREAKSCORE_OUTPUT_MODE": BREAKSCORE_OUTPUT_MODE,
         }
-
-        # Task 3 input prep: yearly map source data
-        score_year_df = (
-            break_score_df.groupby(["country", "year"], as_index=False)["score"]
-            .mean()
-            .rename(columns={"score": "score"})
+        pickle_bundle["offline_plot_data"]["refit"] = build_em_offline_plot_pack(
+            PATH=refit_path,
+            COUNTRIES=COUNTRIES_FOR_COEF_PLOT,
+            COL_COUNTRY=COL_COUNTRY,
+            COL_TIME=COL_TIME,
+            ENDO=ENDO,
+            EXO=EXO,
+            lags=lags,
+            max_em_iter=MAX_EM_ITER,
+            iso3_to_country=ISO3_TO_COUNTRY,
         )
-        pickle_bundle["llm_integration"]["score_year_df"] = score_year_df
 
-
-
-def plot_breakscore_countries_em(
-    PATH,
-    COUNTRIES,
-    COL_COUNTRY="country",
-    COL_TIME="quarter",
-    ENDO=None,
-    EXO=None,
-    lags=1,
-    max_em_iter=8,
-    drop_quarters_dict: dict[str, list[pd.Timestamp]] | None = None,
-    iso3_to_country: dict | None = None,
-    pdf: PdfPages | None = None,
-    save_dir: str | None = None,
-):
-    """Plot per-country break score trajectories from EM innovation score.
-    If drop_quarters_dict is provided, those quarters are removed before plotting.
-    """
-    bs = build_em_break_score_panel(
-        PATH=PATH,
-        COUNTRIES=COUNTRIES,
-        COL_COUNTRY=COL_COUNTRY,
-        COL_TIME=COL_TIME,
-        ENDO=ENDO,
-        EXO=EXO,
-        lags=lags,
-        max_em_iter=max_em_iter,
-    ).dropna(subset=["score"])
-    if bs.empty:
-        print("[WARN] break score panel empty; skip breakscore plot")
-        return
-
-    for country in COUNTRIES:
-        g = bs[bs["country"] == country].copy()
-        if drop_quarters_dict and country in drop_quarters_dict:
-            drop_q = set(pd.to_datetime(drop_quarters_dict[country]))
-            g = g[~pd.to_datetime(g["quarter"]).isin(drop_q)].copy()
-        if g.empty:
-            continue
-        cname = country_display_name(country, iso3_to_country)
-        quarters = pd.to_datetime(g["quarter"].values)
-        vals = g["score"].to_numpy(float)
-        plt.figure(figsize=(12, 4.8))
-        plt.plot(quarters, vals, color="black", linewidth=1.2)
-        plt.title(f"{cname} — Break score (innovation)")
-        plt.xlabel("Quarter")
-        plt.ylabel("score")
-        ax = plt.gca()
-        style_quarter_axis_every_four_quarters(ax)
-        ax.grid(True, which="major", axis="y", alpha=0.25)
-        plt.tight_layout()
-        fig = plt.gcf()
-        if save_dir:
-            out_dir = Path(save_dir)
-            out_dir.mkdir(parents=True, exist_ok=True)
-            fig.savefig(out_dir / f"breakscore_{country}.jpg", dpi=150, bbox_inches="tight")
-            plt.close(fig)
-        else:
-            _fig_save_or_show(fig, pdf)
-
-
-def build_drop_quarters_dict_from_llm_points(
-    base_path: str,
-    llm_csv: str,
-    countries: list[str],
-    near_break_years: int = 2,
-    top_score_k: int = 5,
-) -> tuple[dict[str, list[pd.Timestamp]], pd.DataFrame]:
-    """Build country->quarters-to-drop dictionary from top-k score + LLM break-year rule."""
-    if not Path(llm_csv).exists():
-        print(f"[WARN] skip refit filter: file not found -> {llm_csv}")
-        return {}, pd.DataFrame(columns=["country", "quarter", "year", "score"])
-
-    llm_raw = pd.read_csv(llm_csv)
-    llm = _map_llm_country_to_iso3(llm_raw, ISO3_TO_COUNTRY)
-    llm = llm[llm["country"].isin(countries)].copy()
-    if "break_supported" not in llm.columns or "break_year" not in llm.columns:
-        print("[WARN] skip refit filter: missing break_supported/break_year")
-        return {}, pd.DataFrame(columns=["country", "quarter", "year", "score"])
-
-    llm["break_year"] = pd.to_numeric(llm["break_year"], errors="coerce")
-    llm = llm.dropna(subset=["break_year"]).copy()
-    llm["break_year"] = llm["break_year"].astype(int)
-    llm["break_supported_bin"] = (
-        llm["break_supported"]
-        .astype(str)
-        .str.strip()
-        .str.lower()
-        .map({"1": 1, "true": 1, "yes": 1, "0": 0, "false": 0, "no": 0})
-        .fillna(0)
-        .astype(int)
-    )
-
-    score_df = build_em_break_score_panel(
-        PATH=base_path,
-        COUNTRIES=countries,
-        COL_COUNTRY=COL_COUNTRY,
-        COL_TIME=COL_TIME,
-        ENDO=ENDO,
-        EXO=EXO,
-        lags=lags,
-        max_em_iter=8,
-    ).dropna(subset=["score"])
-    if score_df.empty:
-        print("[WARN] skip refit filter: break score panel empty")
-        return {}, pd.DataFrame(columns=["country", "quarter", "year", "score"])
-
-    topk = (
-        score_df.groupby("country", group_keys=False)
-        .apply(lambda g: g.nlargest(top_score_k, "score"))
-        .reset_index(drop=True)
-    )
-    supported_years = (
-        llm[llm["break_supported_bin"] == 1]
-        .groupby("country")["break_year"]
-        .apply(list)
-        .to_dict()
-    )
-
-    drop_rows = []
-    for r in topk.itertuples(index=False):
-        years = supported_years.get(r.country, [])
-        if any(abs(int(r.year) - int(y)) <= near_break_years for y in years):
-            drop_rows.append(
-                {
-                    "country": r.country,
-                    "quarter": pd.Timestamp(r.quarter),
-                    "year": int(r.year),
-                    "score": float(r.score),
-                }
-            )
-    if not drop_rows:
-        print("[INFO] no points matched condition; keep original panel")
-        return {}, pd.DataFrame(columns=["country", "quarter", "year", "score"])
-
-    drop_df = pd.DataFrame(drop_rows).drop_duplicates(subset=["country", "quarter"]).copy()
-    drop_df["quarter"] = pd.to_datetime(drop_df["quarter"])
-
-    # Aggressive expansion: drop the whole year (all 4 quarters) for matched points.
-    expanded_rows = []
-    for r in drop_df.itertuples(index=False):
-        y = int(r.year)
-        for qn in (1, 2, 3, 4):
-            q = pd.Period(f"{y}Q{qn}", freq="Q").to_timestamp("Q")
-            expanded_rows.append(
-                {
-                    "country": r.country,
-                    "quarter": q,
-                    "year": y,
-                    "score": float(r.score),
-                }
-            )
-    drop_df = pd.DataFrame(expanded_rows).drop_duplicates(subset=["country", "quarter"]).copy()
-
-    drop_quarters_dict = (
-        drop_df.groupby("country")["quarter"]
-        .apply(lambda s: sorted(set(pd.to_datetime(s).tolist())))
-        .to_dict()
-    )
-    return drop_quarters_dict, drop_df
-
-
-def build_filtered_panel_from_llm_points(
-    base_path: str,
-    out_filtered_csv: str,
-    drop_quarters_dict: dict[str, list[pd.Timestamp]] | None = None,
-    exclude_years: list[int] | None = None,
-) -> str:
-    """Drop rows by precomputed country->quarter dict and return filtered panel path.
-    Note: actual filtering is done by (country, year) to avoid timestamp alignment issues.
-    """
-    if not drop_quarters_dict:
-        return base_path
-
-    src = pd.read_csv(base_path)
-    src[COL_TIME] = pd.to_datetime(src[COL_TIME], errors="coerce")
-    src["_drop_year"] = src[COL_TIME].dt.year
-    key_rows = []
-    for c, q_list in drop_quarters_dict.items():
-        for q in q_list:
-            key_rows.append({COL_COUNTRY: c, "_drop_year": int(pd.Timestamp(q).year)})
-    key = pd.DataFrame(key_rows).drop_duplicates()
-    if key.empty:
-        return base_path
-
-    out = src.merge(key.assign(_drop=1), on=[COL_COUNTRY, "_drop_year"], how="left")
-    out = out[out["_drop"].isna()].copy()
-    if exclude_years:
-        ex_years = set(int(y) for y in exclude_years)
-        out = out[~out["_drop_year"].isin(ex_years)].copy()
-    out = out.drop(columns=["_drop", "_drop_year"])
-    out.to_csv(out_filtered_csv, index=False)
-    print(f"[SAVE] {out_filtered_csv} (dropped={len(src)-len(out)})")
-    return out_filtered_csv
-
-
-# Extra pass only: drop points then rerun KF/EM and export coeff + breakscore PDF.
-ENABLE_LLM_REFIT_PDF = False
-PLOTS_REFIT_PDF_PATH: str | None = _dash_out("GVAR_LLM_EM_plots_refit.pdf")
-DROP_POINTS_LIST_CSV = _dash_out("llm_top5_near_break_points_to_drop.csv")
-REFIT_PANEL_CSV = _dash_out("gvar_panel_refit_filtered.csv")
-TOP_SCORE_K = 5
-NEAR_BREAK_YEARS = 2
-REFIT_EXCLUDE_YEARS = [2020, 2021, 2022,2023,2024,2025,2026]
-BREAKSCORE_OUTPUT_MODE = "pdf"   # "pdf" | "plot" | "jpg"
-BREAKSCORE_JPG_DIR = _dash_out("breakscore_jpg")
-
-if ENABLE_LLM_REFIT_PDF:
-    drop_quarters_dict, drop_df = build_drop_quarters_dict_from_llm_points(
-        base_path=PATH,
-        llm_csv=LLM_RESULTS_CSV,
-        countries=list(countries_to_run),
-        near_break_years=NEAR_BREAK_YEARS,
-        top_score_k=TOP_SCORE_K,
-    )
-    if not drop_df.empty:
-        drop_df.to_csv(DROP_POINTS_LIST_CSV, index=False)
-        print(f"[SAVE] {DROP_POINTS_LIST_CSV} (n={len(drop_df)})")
-    refit_path = build_filtered_panel_from_llm_points(
-        base_path=PATH,
-        out_filtered_csv=REFIT_PANEL_CSV,
-        drop_quarters_dict=drop_quarters_dict,
-        exclude_years=REFIT_EXCLUDE_YEARS,
-    )
-    refit_kw = dict(_plot_kw)
-    refit_kw["PATH"] = refit_path
-    pickle_bundle["refit"] = {
-        "drop_quarters_dict": drop_quarters_dict,
-        "drop_df": drop_df,
-        "refit_path": refit_path,
-        "BREAKSCORE_OUTPUT_MODE": BREAKSCORE_OUTPUT_MODE,
-    }
-    pickle_bundle["offline_plot_data"]["refit"] = build_em_offline_plot_pack(
-        PATH=refit_path,
-        COUNTRIES=COUNTRIES_FOR_COEF_PLOT,
-        COL_COUNTRY=COL_COUNTRY,
-        COL_TIME=COL_TIME,
-        ENDO=ENDO,
-        EXO=EXO,
-        lags=lags,
-        max_em_iter=8,
-        iso3_to_country=ISO3_TO_COUNTRY,
-    )
-
-# Persist pipeline artifacts only; visualization is handled in SDR_visualize_from_pickle.py.
-with open(RESULTS_PICKLE_PATH, "wb") as f:
-    pickle.dump(pickle_bundle, f)
-print(f"[PICKLE] Saved: {RESULTS_PICKLE_PATH}")
-
+    # Persist pipeline artifacts only; visualization is handled in SDR_visualize_from_pickle.py.
+    with open(RESULTS_PICKLE_PATH, "wb") as f:
+        pickle.dump(pickle_bundle, f)
+    print(f"[PICKLE] Saved: {RESULTS_PICKLE_PATH}")

@@ -8,12 +8,12 @@ The application is designed to explore how macroeconomic relationships (e.g., GD
 
 At present:
 
-- The **Streamlit app is the primary (and only) execution entry point**
-- There are **no batch scripts producing CSV outputs**
-- All estimation, forecasting, and impulse response analysis is performed **in memory**
-- Results are **visualized interactively**, not written to disk
+- The **Streamlit app** is the primary entry point (`streamlit run apps/streamlit_TRP.py`)
+- The macro panel **`data/gvar_panel_streamlit.csv`** is a **fixed input** (not rebuilt in this repo)
+- VAR / TVP-VAR estimation for the main tabs runs in memory from that CSV
+- Structural-break views use precomputed pickle / LLM artifacts under `structural_break/` and `Dash_Input/`
 
-This is intentional. The current focus is on **methodological validation, diagnostics, and exploration**, rather than automated production workflows.
+See `data/README.md` for input file expectations.
 
 ---
 

@@ -4,7 +4,7 @@ from statsmodels.tsa.api import VAR
 
 from analysis.validation.simulate_data import simulate_var2_with_break
 from analysis.estimate_var import tvp_var_with_exog_and_var_prior  # your wrapper
-from data_prep.data_loader import load_country_dataframe
+from trp.inputs import load_country_dataframe
 from analysis.validation.compare_betas import plot_A1_tracking, summarize_pre_post
 
 def run_break_experiment_on_real_data( Y, X, p=2, lam=0.995, R_scale=200.0,

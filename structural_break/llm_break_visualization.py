@@ -241,7 +241,12 @@ def build_time_slice_maps(
     merged["break_supported"] = merged["break_supported"].fillna(0).astype(int)
     # Keep only LLM-supported breaks on the map.
     merged = merged[merged["break_supported"] == 1].copy()
-    merged["point_color"] = merged["climate_related"].map({1: "green", 0: "blue"})
+    merged["point_color"] = merged["climate_related"].map(
+        {
+            1: "Potential climate-related structural break",
+            0: "Structural break",
+        }
+    )
     merged["break_type"] = merged["break_type"].fillna("")
     merged["duration"] = merged["duration"].fillna("")
     merged["climate_related"] = merged["climate_related"].fillna(0).astype(int)
@@ -273,7 +278,10 @@ def build_time_slice_maps(
             size="size_scaled",
             size_max=25,
             color="point_color",
-            color_discrete_map={"green": "green", "blue": "blue"},
+            color_discrete_map={
+                "Potential climate-related structural break": "green",
+                "Structural break": "blue",
+            },
             hover_name=country_col,
             hover_data={
                 year_col: True,
