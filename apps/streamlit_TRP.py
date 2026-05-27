@@ -21,6 +21,7 @@ from statsmodels.tools.sm_exceptions import PerfectSeparationWarning
 
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 import warnings
 warnings.simplefilter("default", Warning)
@@ -54,6 +55,24 @@ DASHBOARD_COUNTRIES = [
     "PHL",  # Philippines
 ]
 MACRO_IMPACT_VARS = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
+
+HELP_TEXT = {
+    "country": "Primary country used as the default selection across dashboard tabs.",
+    "response": "Macroeconomic response variable used for scenario charts and impact summaries.",
+    "enso_forecast": "Forecast ENSO index value for the next quarter. Positive values indicate El Nino-like conditions; negative values indicate La Nina-like conditions.",
+    "stress_threshold": "Percentile cutoff used to define an extreme physical stress event. Higher values focus on rarer, more severe heat or moisture outcomes.",
+    "baseline_probability": "Unconditional probability implied by the selected stress threshold before applying ENSO information.",
+    "enso_probability": "Estimated probability after conditioning on the selected ENSO forecast. The delta compares this value with the stored baseline probability.",
+    "risk_summary": "Country-level probabilities generated from the selected ENSO forecast and stress threshold.",
+    "scenario_countries": "Countries included in the scenario forecast charts, summary tables, and cumulative impact maps.",
+    "qr_country": "Country used for the precomputed QR adaptive Kalman filter comparison charts.",
+    "sb_countries": "Countries shown in the structural-break score, document-evidence, Gemini output, and overlap panels.",
+    "llm_overlay": "Adds highlighted years where the Gemini/LLM evidence flags a supported structural break.",
+    "score_series": "Score diagnostics to plot. Innovation captures forecast surprise; coefficient change captures parameter movement; composite combines available signals.",
+    "wb_year": "World Bank document year used to display the top supporting document records.",
+    "impact_window": "Number of forward quarters used to average raw macro impact and model-surprise scores.",
+    "map_year": "Pre-generated structural-break map year to display.",
+}
 
 def get_country_regime_ts(panel, country):
     df = panel[panel["country"] == country].copy()
@@ -769,6 +788,103 @@ def build_enso_coeff_df_from_offline(country_pack):
         return pd.DataFrame()
     return out
 
+
+def build_enso_peak_event_study(
+    panel_df,
+    forecast_bundle,
+    pipeline_pack,
+    country,
+    value_mode,
+    selected_peak_labels=None,
+):
+    enso = (
+        panel_df[["quarter", "ENSO"]]
+        .dropna()
+        .drop_duplicates("quarter")
+        .assign(
+            quarter=lambda d: pd.to_datetime(d["quarter"], errors="coerce"),
+            ENSO=lambda d: pd.to_numeric(d["ENSO"], errors="coerce"),
+        )
+        .dropna(subset=["quarter"])
+        .sort_values("quarter")
+    )
+    peaks = (
+        enso[(enso["ENSO"] >= enso["ENSO"].shift(1)) & (enso["ENSO"] > enso["ENSO"].shift(-1))]
+        .nlargest(5, "ENSO")
+        .sort_values("quarter")
+    )
+    if selected_peak_labels:
+        peak_labels = peaks["quarter"].dt.to_period("Q").astype(str)
+        peaks = peaks[peak_labels.isin(selected_peak_labels)]
+
+    df = panel_df[panel_df["country"].astype(str) == country].copy()
+    df["quarter"] = pd.to_datetime(df["quarter"], errors="coerce")
+    vars_use = [v for v in MACRO_IMPACT_VARS if v in df.columns]
+
+    if value_mode == "ENSO model contribution":
+        scenarios = _forecast_scenarios(forecast_bundle)
+        scenario_bundle = scenarios.get("mean") or next(iter(scenarios.values()), {})
+        country_pack = scenario_bundle.get("per_country", {}).get(country, {})
+        offline_country = pipeline_pack.get("offline_per_country", {}).get(country, {})
+        enso_coeff_df = build_enso_coeff_df_from_offline(offline_country)
+        if not country_pack or enso_coeff_df.empty or "ENSO" not in df.columns:
+            return pd.DataFrame(), peaks
+
+        enso_coeff_df = enso_coeff_df.rename(
+            columns={f"{v}<-ENSO": f"{v}_enso_beta" for v in MACRO_IMPACT_VARS}
+        )
+        df = df.merge(enso_coeff_df, on="quarter", how="inner")
+        vars_use = [v for v in vars_use if f"{v}_enso_beta" in df.columns]
+        if not vars_use:
+            return pd.DataFrame(), peaks
+
+        enso = pd.to_numeric(df["ENSO"], errors="coerce")
+        enso_z = (enso - enso.mean()) / (enso.std(ddof=0) + 1e-8)
+        y_sd = dict(zip(country_pack.get("ENDO_use", []), np.asarray(country_pack.get("y_sd", []), dtype=float)))
+        for v in vars_use:
+            df[v] = (
+                pd.to_numeric(df[f"{v}_enso_beta"], errors="coerce")
+                * enso_z
+                * float(y_sd.get(v, 1.0))
+            )
+
+    df = df.dropna(subset=["quarter"]).sort_values("quarter")
+    if df.empty or not vars_use:
+        return pd.DataFrame(), peaks
+
+    df = df.set_index(df["quarter"].dt.to_period("Q"))
+    rows = []
+    for peak in peaks.itertuples(index=False):
+        peak_period = peak.quarter.to_period("Q")
+        if peak_period not in df.index:
+            continue
+        base = df.loc[peak_period, vars_use]
+        if isinstance(base, pd.DataFrame):
+            base = base.iloc[0]
+        for rel_q in range(-4, 13):
+            q = peak_period + rel_q
+            if q not in df.index:
+                continue
+            row = df.loc[q, vars_use]
+            if isinstance(row, pd.DataFrame):
+                row = row.iloc[0]
+            for v in vars_use:
+                y = pd.to_numeric(row[v], errors="coerce")
+                y0 = 0.0 if value_mode == "ENSO model contribution" else pd.to_numeric(base[v], errors="coerce")
+                if pd.notna(y) and pd.notna(y0):
+                    rows.append(
+                        {
+                            "variable": v,
+                            "event_label": peak.quarter.to_period("Q").strftime("%YQ%q"),
+                            "peak_quarter": peak.quarter,
+                            "enso_value": peak.ENSO,
+                            "relative_quarter": rel_q,
+                            "value": y - y0,
+                        }
+                    )
+
+    return pd.DataFrame(rows), peaks
+
 # ----- STREAMLIT SETUP
 st.set_page_config(
     page_title="Climate–Macro GVAR Explorer",
@@ -799,19 +915,26 @@ if not country_options:
 
 control_cols = st.columns([1.2, 1.2, 2.6])
 with control_cols[0]:
-    country = st.selectbox("Country", country_options, format_func=iso3_to_label, key="country_select")
+    country = st.selectbox(
+        "Country",
+        country_options,
+        format_func=iso3_to_label,
+        key="country_select",
+        help=HELP_TEXT["country"],
+    )
 with control_cols[1]:
     response_var = st.selectbox(
         "Response",
         [v for v in MACRO_IMPACT_VARS if v in panel.columns],
         key="response_select",
+        help=HELP_TEXT["response"],
     )
 with control_cols[2]:
     st.caption("Dashboard uses the offline EM/KF pickle and precomputed Dash_Output charts; no online KF fitting is run.")
 
 # ----- STREAMLIT TABS
-tab_climate_risk, tab_scenario, tab_structural_break = st.tabs(
-    ["Climate Risk", "Scenario Impacts", "Structural Break"]
+tab_climate_risk, tab_scenario, tab_event_study, tab_structural_break = st.tabs(
+    ["Climate Risk", "Scenario Impacts", "ENSO Event Study", "Structural Break"]
 )
 
 with tab_climate_risk:
@@ -834,6 +957,7 @@ with tab_climate_risk:
             value=1.5,
             step=0.1,
             key="enso_forecast",
+            help=HELP_TEXT["enso_forecast"],
         )
     with ew_cols[1]:
         heat_moist_pct = st.slider(
@@ -843,6 +967,7 @@ with tab_climate_risk:
             value=90,
             step=1,
             key="heat_threshold",
+            help=HELP_TEXT["stress_threshold"],
         )
 
     prob_rows_df = build_climate_probability_rows(_panel_path, enso_forecast, heat_moist_pct)
@@ -863,7 +988,11 @@ with tab_climate_risk:
     c1, c2, c3, c4 = st.columns(4)
     baseline = 1.0 - heat_moist_pct / 100
     with c1:
-        st.metric("Baseline probability of extreme heat next quarter", f"{baseline:.0%}")
+        st.metric(
+            "Baseline probability of extreme heat next quarter",
+            f"{baseline:.0%}",
+            help=HELP_TEXT["baseline_probability"],
+        )
     with c2:
         base_heat = pd.to_numeric(p_row.get("P_HEAT_NEXT_Q"), errors="coerce").iloc[0] if not p_row.empty else np.nan
         delta_heat = p_heat - base_heat if pd.notna(base_heat) and pd.notna(p_heat) else np.nan
@@ -871,9 +1000,14 @@ with tab_climate_risk:
             "ENSO-conditioned probability of extreme heat next quarter",
             "—" if np.isnan(p_heat) else f"{p_heat:.0%}",
             **({ "delta": f"{delta_heat:+.0%}" } if pd.notna(delta_heat) else {}),
+            help=HELP_TEXT["enso_probability"],
         )
     with c3:
-        st.metric("Probability of moisture stress next quarter", f"{baseline:.0%}")
+        st.metric(
+            "Probability of moisture stress next quarter",
+            f"{baseline:.0%}",
+            help=HELP_TEXT["baseline_probability"],
+        )
     with c4:
         base_moist = pd.to_numeric(p_row.get("P_MOISTURE_NEXT_Q"), errors="coerce").iloc[0] if not p_row.empty else np.nan
         delta_moist = p_moist - base_moist if pd.notna(base_moist) and pd.notna(p_moist) else np.nan
@@ -881,6 +1015,7 @@ with tab_climate_risk:
             "ENSO-conditioned probability of extreme moisture next quarter",
             "—" if np.isnan(p_moist) else f"{p_moist:.0%}",
             **({ "delta": f"{delta_moist:+.0%}" } if pd.notna(delta_moist) else {}),
+            help=HELP_TEXT["enso_probability"],
         )
 
     st.caption(
@@ -896,8 +1031,16 @@ with tab_climate_risk:
         risk_table,
         column_config={
             "Country": st.column_config.TextColumn("Country"),
-            "Heat probability (%)": st.column_config.NumberColumn("Heat Probability", format="%.1f%%"),
-            "Moisture probability (%)": st.column_config.NumberColumn("Moisture Probability", format="%.1f%%"),
+            "Heat probability (%)": st.column_config.NumberColumn(
+                "Heat Probability",
+                format="%.1f%%",
+                help=HELP_TEXT["risk_summary"],
+            ),
+            "Moisture probability (%)": st.column_config.NumberColumn(
+                "Moisture Probability",
+                format="%.1f%%",
+                help=HELP_TEXT["risk_summary"],
+            ),
         },
         hide_index=True,
         width="stretch",
@@ -987,6 +1130,7 @@ with tab_scenario:
         default=[country],
         format_func=iso3_to_label,
         key="scenario_countries",
+        help=HELP_TEXT["scenario_countries"],
     )
 
     if not forecast_pack["bundle"]:
@@ -1032,6 +1176,7 @@ with tab_scenario:
                         f"{response_var} cumulative change vs no ENSO impact",
                         f"{r['cumulative_mean']:+.2f} p.p.",
                         delta=f"{r['cumulative_min']:+.2f} to {r['cumulative_max']:+.2f} p.p.",
+                        help="Cumulative forecast difference between the ENSO scenario and a no-ENSO-impact baseline, shown in percentage points.",
                     )
                 show_tbl = c_quarters.copy()
                 show_tbl["quarter"] = show_tbl["quarter"].dt.to_period("Q").astype(str)
@@ -1083,6 +1228,7 @@ with tab_scenario:
             options=scenario_countries or country_options,
             format_func=iso3_to_label,
             key="qr_country",
+            help=HELP_TEXT["qr_country"],
         )
         qr_cols = st.columns(2)
         qr_paths = [
@@ -1116,6 +1262,7 @@ with tab_scenario:
             options=scenario_countries or country_options,
             format_func=iso3_to_label,
             key="qr_country_no_forecast",
+            help=HELP_TEXT["qr_country"],
         )
         qr_cols = st.columns(2)
         qr_paths = [
@@ -1142,6 +1289,121 @@ with tab_scenario:
                     st.image(str(path), caption=caption, use_container_width=True)
                 else:
                     st.info(f"Missing QR chart: `{path}`")
+
+
+with tab_event_study:
+    st.header("ENSO Peak Event Study")
+
+    event_cols = st.columns([1, 1, 3])
+    with event_cols[0]:
+        event_country = st.selectbox(
+            "Country",
+            country_options,
+            index=country_options.index(country),
+            format_func=iso3_to_label,
+            key="event_country",
+        )
+    with event_cols[1]:
+        event_mode = st.radio(
+            "Series",
+            ["Raw data", "ENSO model contribution"],
+            horizontal=True,
+            key="event_mode",
+        )
+
+    event_forecast_pack = load_forecast_bundle()
+    event_pipeline_pack = load_pipeline_break_scores()
+    _, peak_df = build_enso_peak_event_study(
+        panel,
+        event_forecast_pack["bundle"],
+        event_pipeline_pack,
+        event_country,
+        event_mode,
+    )
+
+    peak_table = peak_df.copy()
+    peak_table["quarter"] = peak_table["quarter"].dt.to_period("Q").astype(str)
+    peak_table = peak_table.rename(columns={"quarter": "ENSO peak quarter", "ENSO": "ENSO value"})
+    st.dataframe(
+        peak_table[["ENSO peak quarter", "ENSO value"]],
+        hide_index=True,
+        width="stretch",
+    )
+    peak_options = peak_table["ENSO peak quarter"].tolist()
+    selected_peaks = st.multiselect(
+        "Events to plot",
+        options=peak_options,
+        default=peak_options,
+        key="event_peaks",
+    )
+
+    event_df, _ = build_enso_peak_event_study(
+        panel,
+        event_forecast_pack["bundle"],
+        event_pipeline_pack,
+        event_country,
+        event_mode,
+        selected_peak_labels=selected_peaks,
+    )
+
+    if not selected_peaks:
+        st.info("Select at least one ENSO peak to plot.")
+    elif event_df.empty:
+        st.info("No event-study data available for the selected country and series.")
+    else:
+        fig_event = make_subplots(
+            rows=2,
+            cols=2,
+            subplot_titles=[v.replace("_", " ") for v in MACRO_IMPACT_VARS],
+            horizontal_spacing=0.10,
+            vertical_spacing=0.16,
+        )
+        colors = px.colors.qualitative.Plotly
+        events = event_df[["event_label", "peak_quarter"]].drop_duplicates().sort_values("peak_quarter")
+        color_map = {event.event_label: colors[i % len(colors)] for i, event in enumerate(events.itertuples())}
+
+        for i, var in enumerate(MACRO_IMPACT_VARS):
+            r = i // 2 + 1
+            c = i % 2 + 1
+            vdf = event_df[event_df["variable"] == var]
+            for event_label, edf in vdf.groupby("event_label"):
+                fig_event.add_trace(
+                    go.Scatter(
+                        x=edf["relative_quarter"],
+                        y=edf["value"],
+                        mode="lines+markers",
+                        name=event_label,
+                        legendgroup=event_label,
+                        showlegend=(i == 0),
+                        line=dict(color=color_map[event_label]),
+                        marker=dict(color=color_map[event_label]),
+                        hovertemplate=(
+                            "ENSO peak: %{fullData.name}"
+                            "<br>Relative quarter: %{x}"
+                            "<br>Value: %{y:.2f}"
+                            "<extra></extra>"
+                        ),
+                    ),
+                    row=r,
+                    col=c,
+                )
+            fig_event.add_hline(y=0, line_dash="dot", line_color="#999", row=r, col=c)
+            fig_event.add_vline(x=0, line_dash="dash", line_color="#444", row=r, col=c)
+
+        fig_event.update_layout(
+            title=f"{event_country}: top-5 ENSO peak windows ({event_mode})",
+            height=720,
+            margin=dict(l=30, r=20, t=80, b=80),
+            legend=dict(orientation="h", yanchor="top", y=-0.08, xanchor="left", x=0),
+        )
+        fig_event.update_xaxes(title_text="Quarters from ENSO peak")
+        y_title = (
+            "Change from peak quarter"
+            if event_mode == "Raw data"
+            else "KF prediction minus ENSO=0 prediction"
+        )
+        fig_event.update_yaxes(title_text=y_title)
+        st.plotly_chart(fig_event, width="stretch")
 
 
 with tab_structural_break:
@@ -1233,11 +1495,13 @@ with tab_structural_break:
         default=default_sel,
         format_func=iso3_to_label,
         key="sb_countries",
+        help=HELP_TEXT["sb_countries"],
     )
     use_llm_overlay = st.checkbox(
         "Overlay Gemini identified break years",
         value=True,
         key="sb_use_llm_overlay",
+        help=HELP_TEXT["llm_overlay"],
     )
 
     st.subheader("1) Structural break scores")
@@ -1305,6 +1569,7 @@ with tab_structural_break:
             options=score_cols,
             default=score_cols[:3],
             key=f"sb_score_pick_{iso3}",
+            help=HELP_TEXT["score_series"],
         )
         if not score_pick:
             st.info("Select at least one score series.")
@@ -1415,6 +1680,7 @@ with tab_structural_break:
                     f"Year ({iso3})",
                     options=years,
                     key=f"wb_year_{iso3}",
+                    help=HELP_TEXT["wb_year"],
                 )
                 ydf = (
                     cdf[cdf["year"] == y_pick]
@@ -1492,6 +1758,7 @@ with tab_structural_break:
         value=8,
         step=1,
         key="sb_impact_horizon_q",
+        help=HELP_TEXT["impact_window"],
     )
 
     for iso3 in sb_countries:
@@ -1616,7 +1883,12 @@ with tab_structural_break:
         st.warning(f"No pre-generated map files found in `{PREGENERATED_MAP_DIR}`.")
     else:
         st.caption("Using pre-generated map HTML files (no country filtering).")
-        map_year = st.selectbox("Map year", options=map_year_options, key="sb_map_year")
+        map_year = st.selectbox(
+            "Map year",
+            options=map_year_options,
+            key="sb_map_year",
+            help=HELP_TEXT["map_year"],
+        )
         map_path = year_to_file.get(map_year)
         if map_path is None or not map_path.exists():
             st.warning(f"Map file not found for year {map_year}.")
