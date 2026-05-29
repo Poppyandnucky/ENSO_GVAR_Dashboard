@@ -1,27 +1,34 @@
 import math
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import pandas as pd
 import plotly.express as px
 
-COUNTRY_TO_ISO = {
-    "Chile": "CHL",
-    "Mexico": "MEX",
-    "Brazil": "BRA",
-    "Colombia": "COL",
-    "Australia": "AUS",
-    "Canada": "CAN",
-    "Norway": "NOR",
-    "Philippines": "PHL",
-    "India": "IND",
-    "Thailand": "THA",
-    "Indonesia": "IDN",
-    "Sweden": "SWE",
-    "Switzerland": "CHE",
-    "New Zealand": "NZL",
-    "Denmark": "DNK",
-}
+
+def _build_country_to_iso_map(iso3_to_country: dict[str, Any] | None = None) -> dict[str, str]:
+    """Build country-name -> ISO3 mapping from the pipeline config."""
+    out: dict[str, str] = {}
+    if iso3_to_country:
+        for iso3, country_name in iso3_to_country.items():
+            key = str(country_name).strip().lower()
+            val = str(iso3).strip().upper()
+            if key and len(val) == 3:
+                out[key] = val
+    return out
+
+
+def _normalize_country_to_iso3(
+    series: pd.Series,
+    iso3_to_country: dict[str, Any] | None = None,
+) -> pd.Series:
+    """Normalize mixed country labels (full names or ISO3) into ISO3 codes."""
+    cmap = _build_country_to_iso_map(iso3_to_country)
+    raw = series.astype(str).str.strip()
+    iso3_direct = raw.str.upper().where(raw.str.len() == 3)
+    mapped = raw.str.lower().map(cmap)
+    return iso3_direct.fillna(mapped)
 
 
 def _to_binary(value, default=0):
@@ -64,7 +71,10 @@ def _normalize_break_type(text):
     return "Other"
 
 
-def preprocess_llm_breaks(llm_df: pd.DataFrame) -> pd.DataFrame:
+def preprocess_llm_breaks(
+    llm_df: pd.DataFrame,
+    iso3_to_country: dict[str, Any] | None = None,
+) -> pd.DataFrame:
     """Clean LLM break table and build break_strength."""
     need = ["country", "break_year", "break_supported", "break_type", "duration", "climate_related"]
     missing = [c for c in need if c not in llm_df.columns]
@@ -72,7 +82,7 @@ def preprocess_llm_breaks(llm_df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError(f"LLM table missing required fields: {missing}")
 
     out = llm_df.copy()
-    out["country"] = out["country"].astype(str).str.strip()
+    out["country"] = _normalize_country_to_iso3(out["country"], iso3_to_country)
     out["break_year"] = pd.to_numeric(out["break_year"], errors="coerce")
     out = out.dropna(subset=["country", "break_year"]).copy()
     out["break_year"] = out["break_year"].astype(int)
@@ -84,9 +94,12 @@ def preprocess_llm_breaks(llm_df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def build_break_structures(llm_df: pd.DataFrame):
+def build_break_structures(
+    llm_df: pd.DataFrame,
+    iso3_to_country: dict[str, Any] | None = None,
+):
     """Build break_dict and climate_flag."""
-    df = preprocess_llm_breaks(llm_df)
+    df = preprocess_llm_breaks(llm_df, iso3_to_country=iso3_to_country)
     supported = df[df["break_supported"] == 1].copy()
 
     break_dict = (
@@ -110,6 +123,7 @@ def plot_structural_break_score_with_llm_overlay(
     show_llm_overlay: bool = True,
     top_k: int = 5,
     ncols: int = 3,
+    iso3_to_country: dict[str, Any] | None = None,
 ):
     """
     Overlay LLM break information on the structural break score curves:
@@ -124,12 +138,15 @@ def plot_structural_break_score_with_llm_overlay(
         raise ValueError(f"score_df missing column: {time_col}")
 
     work = score_df.copy()
-    work[country_col] = work[country_col].astype(str).str.strip()
+    work[country_col] = _normalize_country_to_iso3(work[country_col], iso3_to_country)
     work[time_col] = pd.to_datetime(work[time_col], errors="coerce")
     work[score_col] = pd.to_numeric(work[score_col], errors="coerce")
     work = work.dropna(subset=[country_col, time_col, score_col]).copy()
 
-    break_dict, climate_flag, _supported = build_break_structures(llm_df)
+    break_dict, climate_flag, _supported = build_break_structures(
+        llm_df,
+        iso3_to_country=iso3_to_country,
+    )
 
     countries = sorted(work[country_col].unique().tolist())
     n = len(countries)
@@ -178,8 +195,11 @@ def plot_structural_break_score_with_llm_overlay(
     return fig
 
 
-def plot_break_supported_ratio(llm_df: pd.DataFrame):
-    df = preprocess_llm_breaks(llm_df)
+def plot_break_supported_ratio(
+    llm_df: pd.DataFrame,
+    iso3_to_country: dict[str, Any] | None = None,
+):
+    df = preprocess_llm_breaks(llm_df, iso3_to_country=iso3_to_country)
     ratio = (df["break_supported"] == 1).mean()
     values = [ratio, 1 - ratio]
     labels = ["break_supported = 1", "other"]
@@ -189,8 +209,11 @@ def plot_break_supported_ratio(llm_df: pd.DataFrame):
     return fig
 
 
-def plot_break_type_distribution(llm_df: pd.DataFrame):
-    df = preprocess_llm_breaks(llm_df)
+def plot_break_type_distribution(
+    llm_df: pd.DataFrame,
+    iso3_to_country: dict[str, Any] | None = None,
+):
+    df = preprocess_llm_breaks(llm_df, iso3_to_country=iso3_to_country)
     use = df[df["break_supported"] == 1].copy()
     if use.empty:
         fig, ax = plt.subplots(figsize=(6, 4))
@@ -212,18 +235,19 @@ def build_time_slice_maps(
     country_col: str = "country",
     year_col: str = "year",
     start_year: int = 1998,
-    end_year: int = 2015,
+    end_year: int = 2024,
     output_dir: str = "time_slice_maps",
+    iso3_to_country: dict[str, Any] | None = None,
 ):
     """
-    Generate yearly HTML maps for 1998-2015:
+    Generate yearly HTML maps for the selected year range:
     - Marker size: structural break score
     - Marker color: red if break_supported=1 in that year, else gray
     - Hover: country, break_year, break_type, duration, climate_related, summary
     """
-    llm = preprocess_llm_breaks(llm_df)
+    llm = preprocess_llm_breaks(llm_df, iso3_to_country=iso3_to_country)
     score = score_df.copy()
-    score[country_col] = score[country_col].astype(str).str.strip()
+    score[country_col] = _normalize_country_to_iso3(score[country_col], iso3_to_country)
     score[year_col] = pd.to_numeric(score[year_col], errors="coerce")
     score[score_col] = pd.to_numeric(score[score_col], errors="coerce")
     score = score.dropna(subset=[country_col, year_col, score_col]).copy()
@@ -241,23 +265,13 @@ def build_time_slice_maps(
     merged["break_supported"] = merged["break_supported"].fillna(0).astype(int)
     # Keep only LLM-supported breaks on the map.
     merged = merged[merged["break_supported"] == 1].copy()
-    merged["point_color"] = merged["climate_related"].map(
-        {
-            1: "Potential climate-related structural break",
-            0: "Structural break",
-        }
-    )
+    merged["point_color"] = merged["climate_related"].map({1: "green", 0: "blue"})
     merged["break_type"] = merged["break_type"].fillna("")
     merged["duration"] = merged["duration"].fillna("")
     merged["climate_related"] = merged["climate_related"].fillna(0).astype(int)
     merged["summary"] = merged["summary"].fillna("")
-    # Use ISO-3 for stable map rendering.
-    merged["iso"] = merged[country_col].map(COUNTRY_TO_ISO)
-    merged["iso"] = merged["iso"].fillna(
-        merged[country_col].astype(str).str.strip().str.upper().where(
-            merged[country_col].astype(str).str.strip().str.len() == 3
-        )
-    )
+    # country_col is normalized to ISO3; keep an explicit ISO column for plotly.
+    merged["iso"] = merged[country_col].astype(str).str.strip().str.upper()
     merged = merged.dropna(subset=["iso"]).copy()
 
     out = Path(output_dir)
@@ -279,8 +293,8 @@ def build_time_slice_maps(
             size_max=25,
             color="point_color",
             color_discrete_map={
-                "Potential climate-related structural break": "green",
-                "Structural break": "blue",
+                "green": "green",
+                "blue": "blue",
             },
             hover_name=country_col,
             hover_data={
@@ -301,4 +315,3 @@ def build_time_slice_maps(
         fig.write_html(str(path))
         saved_files.append(str(path))
     return saved_files
-

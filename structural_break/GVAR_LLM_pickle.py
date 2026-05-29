@@ -749,7 +749,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # ---------- Dashboard run configuration ----------
-PATH = str(Path(__file__).resolve().parent.parent / "data" / "gvar_panel_streamlit.csv")
+PATH = str(Path(__file__).resolve().parent.parent / "analysis" / "gvar_panel_streamlit (7 + EGY).csv")
 COUNTRIES = [
     "BRA",
     "CHL",
@@ -762,6 +762,7 @@ COUNTRIES = [
     "THA",
     "PER",
     "PHL",
+    "EGY",
 ]
 countries_to_run = list(COUNTRIES)
 MAX_EM_ITER = 50

@@ -53,6 +53,7 @@ DASHBOARD_COUNTRIES = [
     "THA",  # Thailand
     "PER",  # Peru
     "PHL",  # Philippines
+    "EGY",  # Egypt
 ]
 MACRO_IMPACT_VARS = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
 
@@ -370,6 +371,9 @@ def _forecast_country_frame(scenarios, panel_df, country, response_var):
             continue
         idx = list(d["ENDO_use"]).index(response_var)
         q = pd.to_datetime(d["fc_quarters"])
+        period_type = d.get("period_type")
+        if not period_type or len(period_type) != len(q):
+            period_type = ["Scenario forecast"] * len(q)
         y = _to_raw_y(d, d["y_hat"], panel_df, country)[:, idx]
         base = None
         if d.get("y_hat_enso0") is not None:
@@ -380,6 +384,7 @@ def _forecast_country_frame(scenarios, panel_df, country, response_var):
                     "country": country,
                     "scenario": scenario_name,
                     "quarter": q,
+                    "period_type": period_type,
                     "value": y,
                     "no_enso_value": base if base is not None else np.nan,
                     "impact_vs_no_enso": y - base if base is not None else np.nan,
@@ -402,7 +407,7 @@ def summarize_forecast_ranges(plot_df):
     if plot_df.empty:
         return pd.DataFrame(), pd.DataFrame()
     q_summary = (
-        plot_df.groupby(["country", "quarter"], as_index=False)
+        plot_df.groupby(["country", "quarter", "period_type"], as_index=False)
         .agg(
             impact_min=("impact_vs_no_enso", "min"),
             impact_mean=("impact_vs_no_enso", "mean"),
@@ -413,8 +418,11 @@ def summarize_forecast_ranges(plot_df):
         )
         .sort_values(["country", "quarter"])
     )
+    scenario_df = plot_df[plot_df["period_type"].eq("Scenario forecast")].copy()
+    if scenario_df.empty:
+        scenario_df = plot_df.copy()
     c_summary = (
-        plot_df.groupby(["country", "scenario"], as_index=False)["impact_vs_no_enso"]
+        scenario_df.groupby(["country", "scenario"], as_index=False)["impact_vs_no_enso"]
         .sum()
         .groupby("country", as_index=False)
         .agg(
@@ -789,6 +797,11 @@ def build_enso_coeff_df_from_offline(country_pack):
     return out
 
 
+def format_quarter_label(q):
+    period = pd.Period(q, freq="Q") if not isinstance(q, pd.Period) else q
+    return f"Q{period.quarter} {period.year}"
+
+
 def build_enso_peak_event_study(
     panel_df,
     forecast_bundle,
@@ -814,7 +827,7 @@ def build_enso_peak_event_study(
         .sort_values("quarter")
     )
     if selected_peak_labels:
-        peak_labels = peaks["quarter"].dt.to_period("Q").astype(str)
+        peak_labels = peaks["quarter"].dt.to_period("Q").map(format_quarter_label)
         peaks = peaks[peak_labels.isin(selected_peak_labels)]
 
     df = panel_df[panel_df["country"].astype(str) == country].copy()
@@ -875,7 +888,7 @@ def build_enso_peak_event_study(
                     rows.append(
                         {
                             "variable": v,
-                            "event_label": peak.quarter.to_period("Q").strftime("%YQ%q"),
+                            "event_label": format_quarter_label(peak.quarter.to_period("Q")),
                             "peak_quarter": peak.quarter,
                             "enso_value": peak.ENSO,
                             "relative_quarter": rel_q,
@@ -884,6 +897,71 @@ def build_enso_peak_event_study(
                     )
 
     return pd.DataFrame(rows), peaks
+
+
+def plot_enso_peaks(panel_df, peak_df, selected_peak_labels=None):
+    enso = (
+        panel_df[["quarter", "ENSO"]]
+        .dropna()
+        .drop_duplicates("quarter")
+        .assign(
+            quarter=lambda d: pd.to_datetime(d["quarter"], errors="coerce"),
+            ENSO=lambda d: pd.to_numeric(d["ENSO"], errors="coerce"),
+        )
+        .dropna(subset=["quarter", "ENSO"])
+        .sort_values("quarter")
+    )
+    if enso.empty:
+        return None
+
+    peaks = peak_df.copy()
+    if not peaks.empty:
+        peaks["event_label"] = peaks["quarter"].dt.to_period("Q").map(format_quarter_label)
+        selected = set(selected_peak_labels or peaks["event_label"].tolist())
+        peaks["selected"] = peaks["event_label"].isin(selected)
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=enso["quarter"],
+            y=enso["ENSO"],
+            customdata=enso["quarter"].dt.to_period("Q").astype(str),
+            mode="lines",
+            name="ENSO",
+            line=dict(color="#1f77b4", width=2),
+            hovertemplate="Quarter: %{customdata}<br>ENSO: %{y:.2f}<extra></extra>",
+        )
+    )
+    if not peaks.empty:
+        for is_selected, label, color, size in [
+            (False, "Top ENSO peaks", "#9ca3af", 8),
+            (True, "Selected ENSO peaks", "#d62728", 11),
+        ]:
+            pdf = peaks[peaks["selected"].eq(is_selected)]
+            if pdf.empty:
+                continue
+            fig.add_trace(
+                go.Scatter(
+                    x=pdf["quarter"],
+                    y=pdf["ENSO"],
+                    mode="markers+text",
+                    name=label,
+                    text=pdf["event_label"],
+                    textposition="top center",
+                    marker=dict(color=color, size=size, line=dict(color="white", width=1)),
+                    hovertemplate="ENSO peak: %{text}<br>ENSO: %{y:.2f}<extra></extra>",
+                )
+            )
+
+    fig.update_layout(
+        title="ENSO index with top peaks labeled",
+        xaxis_title="Quarter",
+        yaxis_title="ENSO",
+        height=380,
+        margin=dict(l=30, r=20, t=60, b=40),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+    )
+    return fig
 
 # ----- STREAMLIT SETUP
 st.set_page_config(
@@ -1164,6 +1242,19 @@ with tab_scenario:
 
         if not q_summary.empty:
             st.subheader("Forecast impact ranges vs no ENSO baseline")
+            scenario_start = core_df.loc[
+                core_df["period_type"].eq("Scenario forecast"), "quarter"
+            ].min()
+            scenario_start_label = (
+                pd.Period(scenario_start, freq="Q")
+                if pd.notna(scenario_start)
+                else "the scenario period"
+            )
+            st.caption(
+                f"ENSO and commodity values already observed in the panel are used before {scenario_start_label}. "
+                "Rows marked `Gap fill / nowcast` fill missing near-term country outcomes before the "
+                "scenario period; cumulative impacts and maps are based on `Scenario forecast` rows."
+            )
             for c in scenario_countries:
                 c_quarters = q_summary[q_summary["country"] == c].copy()
                 c_cum = c_summary[c_summary["country"] == c].copy()
@@ -1183,6 +1274,7 @@ with tab_scenario:
                 show_tbl = show_tbl.rename(
                     columns={
                         "quarter": "Quarter",
+                        "period_type": "Period type",
                         "value_min": f"{response_var} min",
                         "value_mean": f"{response_var} mean",
                         "value_max": f"{response_var} max",
@@ -1195,6 +1287,7 @@ with tab_scenario:
                     show_tbl[
                         [
                             "Quarter",
+                            "Period type",
                             f"{response_var} min",
                             f"{response_var} mean",
                             f"{response_var} max",
@@ -1293,6 +1386,11 @@ with tab_scenario:
 
 with tab_event_study:
     st.header("ENSO Peak Event Study")
+    st.caption(
+        "Raw data mode shows y(t+k) minus the value in the selected ENSO peak quarter, "
+        "with the peak aligned at t=0. Model contribution mode is a separate estimated "
+        "ENSO component and should not be read as the raw event-study difference."
+    )
 
     event_cols = st.columns([1, 1, 3])
     with event_cols[0]:
@@ -1322,7 +1420,7 @@ with tab_event_study:
     )
 
     peak_table = peak_df.copy()
-    peak_table["quarter"] = peak_table["quarter"].dt.to_period("Q").astype(str)
+    peak_table["quarter"] = peak_table["quarter"].dt.to_period("Q").map(format_quarter_label)
     peak_table = peak_table.rename(columns={"quarter": "ENSO peak quarter", "ENSO": "ENSO value"})
     st.dataframe(
         peak_table[["ENSO peak quarter", "ENSO value"]],
@@ -1336,6 +1434,9 @@ with tab_event_study:
         default=peak_options,
         key="event_peaks",
     )
+    fig_enso_peaks = plot_enso_peaks(panel, peak_df, selected_peaks)
+    if fig_enso_peaks is not None:
+        st.plotly_chart(fig_enso_peaks, width="stretch")
 
     event_df, _ = build_enso_peak_event_study(
         panel,
@@ -1380,7 +1481,7 @@ with tab_event_study:
                         hovertemplate=(
                             "ENSO peak: %{fullData.name}"
                             "<br>Relative quarter: %{x}"
-                            "<br>Value: %{y:.2f}"
+                            "<br>Difference: %{y:.2f}"
                             "<extra></extra>"
                         ),
                     ),
@@ -1398,9 +1499,9 @@ with tab_event_study:
         )
         fig_event.update_xaxes(title_text="Quarters from ENSO peak")
         y_title = (
-            "Change from peak quarter"
+            "Difference from value during ENSO peak"
             if event_mode == "Raw data"
-            else "KF prediction minus ENSO=0 prediction"
+            else "Estimated ENSO model contribution"
         )
         fig_event.update_yaxes(title_text=y_title)
         st.plotly_chart(fig_event, width="stretch")

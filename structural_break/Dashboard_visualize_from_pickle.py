@@ -67,7 +67,10 @@ LLM_STATS_FILE: str = ""
 # Plotly time-slice maps: HTML only (not matplotlib). "on" | "off".
 LLM_TIME_SLICE_MAPS: Literal["on", "off"] = "on"
 # If "", use pickle config LLM_MAP_OUTPUT_DIR.
-LLM_MAP_OUTPUT_DIR: str = ""
+LLM_MAP_OUTPUT_DIR: str = "Dash_Input/map1998-2024"
+# Map year range.
+LLM_MAP_START_YEAR: int = 1998
+LLM_MAP_END_YEAR: int = 2024
 
 # Refit block (core + breakscore for refit panel).
 REFIT_MODE: Literal["plot", "jpg", "pdf"] = "pdf"
@@ -418,6 +421,7 @@ def visualize_from_pickle(
             show_llm_overlay=cfg.get("SHOW_LLM_BREAK_OVERLAY", True),
             top_k=5,
             ncols=3,
+            iso3_to_country=cfg.get("iso3_to_country"),
         )
 
         if LLM_OVERLAY_MODE == "pdf":
@@ -475,9 +479,10 @@ def visualize_from_pickle(
                 score_col="score",
                 country_col="country",
                 year_col="year",
-                start_year=1998,
-                end_year=2015,
+                start_year=LLM_MAP_START_YEAR,
+                end_year=LLM_MAP_END_YEAR,
                 output_dir=maps_dir,
+                iso3_to_country=cfg.get("iso3_to_country"),
             )
 
     # -------- Refit --------

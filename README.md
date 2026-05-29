@@ -9,7 +9,7 @@ The application is designed to explore how macroeconomic relationships (e.g., GD
 At present:
 
 - The **Streamlit app** is the primary entry point (`streamlit run apps/streamlit_TRP.py`)
-- The macro panel **`data/gvar_panel_streamlit.csv`** is a **fixed input** (not rebuilt in this repo)
+- The macro panel **`analysis/gvar_panel_streamlit (7 + EGY).csv`** is a **fixed input** (not rebuilt in this repo)
 - VAR / TVP-VAR estimation for the main tabs runs in memory from that CSV
 - Structural-break views use precomputed pickle / LLM artifacts under `structural_break/` and `Dash_Input/`
 

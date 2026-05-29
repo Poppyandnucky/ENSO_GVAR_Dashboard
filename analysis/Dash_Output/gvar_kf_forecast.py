@@ -158,6 +158,7 @@ DEFAULT_COUNTRIES: list[str] = [
     "THA",  # Thailand
     "PER",  # Peru
     "PHL",  # Philippines
+    "EGY",  # Egypt
 ]
 
 
@@ -173,17 +174,40 @@ def _period_ts(q: str | pd.Timestamp) -> pd.Timestamp:
 FORECAST_TARGET_QUARTERS = _all_forecast_target_quarters()
 
 
+def _panel_exog_history() -> pd.DataFrame:
+    """Load unique quarterly exogenous values from the panel when available."""
+    try:
+        raw = pd.read_csv(gp.PATH, usecols=["quarter", "ENSO", "COMMODITY_YoY"])
+    except Exception as exc:
+        print(f"[WARN] could not load panel exogenous history from {gp.PATH}: {exc}")
+        return pd.DataFrame(columns=["quarter", "ENSO", "COMMODITY_YoY"])
+    raw["quarter"] = pd.to_datetime(raw["quarter"]).dt.to_period("Q").dt.to_timestamp()
+    hist = (
+        raw.groupby("quarter", as_index=False)[["ENSO", "COMMODITY_YoY"]]
+        .first()
+        .sort_values("quarter")
+    )
+    return hist
+
+
 def build_forecast_exo_df(
     enso_map: dict[str, float] | None = None,
     commodity_map: dict[str, float] | None = None,
     target_quarters: list[pd.Timestamp] | None = None,
 ) -> pd.DataFrame:
-    """Build exogenous forecast panel indexed by target quarter (value used as Z_{t-1})."""
+    """Build exogenous panel, preferring actual panel values before forecast values."""
     enso_map = enso_map or FORECAST_ENSO_MEAN
     commodity_map = commodity_map or FORECAST_COMMODITY
 
     enso_s = {_period_ts(k): float(v) for k, v in enso_map.items()}
     comm_s = {_quarter_start(pd.to_datetime(k)): float(v) for k, v in commodity_map.items()}
+    exog_hist = _panel_exog_history()
+    enso_actual = dict(
+        zip(exog_hist["quarter"], pd.to_numeric(exog_hist["ENSO"], errors="coerce"))
+    )
+    comm_actual = dict(
+        zip(exog_hist["quarter"], pd.to_numeric(exog_hist["COMMODITY_YoY"], errors="coerce"))
+    )
 
     if target_quarters is None:
         target_quarters = list(FORECAST_TARGET_QUARTERS)
@@ -193,13 +217,19 @@ def build_forecast_exo_df(
     rows = []
     for tq in target_quarters:
         zq = (tq.to_period("Q") - 1).to_timestamp()
+        enso_val = enso_actual.get(tq, np.nan)
+        comm_val = comm_actual.get(zq, np.nan)
+        enso_source = "panel" if np.isfinite(enso_val) else "forecast"
+        comm_source = "panel" if np.isfinite(comm_val) else "forecast"
         rows.append(
             {
                 "target_quarter": tq,
                 "exo_quarter": zq,
-                # ENSO table keyed by forecast target quarter; COMMODITY by lag quarter (t-1).
-                "ENSO": enso_s.get(tq, np.nan),
-                "COMMODITY_YoY": comm_s.get(zq, np.nan),
+                # ENSO is keyed by target quarter; COMMODITY is used with lag t-1.
+                "ENSO": enso_val if enso_source == "panel" else enso_s.get(tq, np.nan),
+                "COMMODITY_YoY": comm_val if comm_source == "panel" else comm_s.get(zq, np.nan),
+                "ENSO_source": enso_source,
+                "COMMODITY_YoY_source": comm_source,
             }
         )
     out = pd.DataFrame(rows).sort_values("target_quarter").reset_index(drop=True)
@@ -617,6 +647,12 @@ def forecast_country_from_em(
         )
 
     fc_q = pd.to_datetime([_quarter_start(x) for x in exo_fc["target_quarter"].values])
+    if "ENSO_source" in exo_fc.columns:
+        scenario_mask = exo_fc["ENSO_source"].astype(str).eq("forecast").to_numpy()
+    else:
+        scenario_mask = np.ones(len(fc_q), dtype=bool)
+    period_type = np.where(scenario_mask, "Scenario forecast", "Gap fill / nowcast")
+    scenario_start_quarter = fc_q[scenario_mask][0] if np.any(scenario_mask) else fc_q[0]
     last_hist_p = pd.Period(hist_q[-1], freq="Q")
     fc_start_p = pd.Period(fc_q[0], freq="Q") if len(fc_q) else None
     if fc_start_p is not None:
@@ -640,6 +676,8 @@ def forecast_country_from_em(
         "hist_last_quarter": hist_q[-1],
         "fc_quarters": fc_q,
         "gap_quarters": gap_quarters,
+        "period_type": period_type.tolist(),
+        "scenario_start_quarter": scenario_start_quarter,
         "y_mu": mu_y,
         "y_sd": sd_y,
         "y_hat": y_hat,

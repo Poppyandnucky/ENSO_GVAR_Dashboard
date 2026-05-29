@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_PANEL_CSV = _REPO_ROOT / "data" / "gvar_panel_streamlit.csv"
+DEFAULT_PANEL_CSV = _REPO_ROOT / "analysis" / "gvar_panel_streamlit (7 + EGY).csv"
 DEFAULT_STRESSOR_PROB_CSV = _REPO_ROOT / "data" / "prithvi_stressor_probabilities.csv"
 
 
@@ -25,7 +25,7 @@ def load_gvar_panel(path: Path | str | None = None) -> pd.DataFrame:
     if not csv_path.is_file():
         raise FileNotFoundError(
             f"Panel CSV not found: {csv_path}. "
-            "Expected a pre-built `data/gvar_panel_streamlit.csv`."
+            "Expected a pre-built `analysis/gvar_panel_streamlit (7 + EGY).csv`."
         )
     return pd.read_csv(csv_path, parse_dates=["quarter"])
 

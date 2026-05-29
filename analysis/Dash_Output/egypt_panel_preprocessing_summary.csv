@@ -1,0 +1,5 @@
+variable,first_nonnull,last_nonnull,nonnull_quarters,missing_quarters_in_panel_range
+GDP_YoY,2002-07-01,2025-10-01,94,23
+CPI_YoY,2006-01-01,2026-01-01,81,36
+FX_YoY,2005-10-01,2026-01-01,82,35
+EX_YoY,2002-07-01,2025-10-01,94,23
