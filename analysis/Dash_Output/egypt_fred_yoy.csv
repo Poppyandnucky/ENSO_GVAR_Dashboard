@@ -1,0 +1,159 @@
+quarter,value,country,variable,series_id,source_frequency,aggregation,yoy_mode,notes,yoy_pct
+1998-01-01,3.388,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",-0.022132054592405304
+1999-01-01,3.39525,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",0.2139905548996346
+2000-01-01,3.47205,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",2.261983653633748
+2001-01-01,3.973,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",14.428075632551373
+2002-01-01,4.49966666666667,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",13.256145649802908
+2003-01-01,5.850875,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",30.029076227868657
+2004-01-01,6.19624166666667,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",5.902820803156272
+2005-01-01,5.77883333333333,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",-6.736476008978654
+2006-01-01,5.73316666666667,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",-0.7902402445705947
+2007-01-01,5.63543333333333,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",-1.7047007180442497
+2008-01-01,5.4325,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",-3.6010244701678573
+2009-01-01,5.54455330862978,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",2.0626471906080024
+2010-01-01,5.62194291761051,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",1.3957771649571349
+2011-01-01,5.93282765151515,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",5.529845081329543
+2012-01-01,6.05605833333333,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",2.0770986291285487
+2013-01-01,6.870325,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",13.445489158927693
+2014-01-01,7.07760856060606,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",3.0170852267696224
+2015-01-01,7.69125833333333,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",8.670298271973431
+2016-01-01,10.0254007885465,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",30.34799188966484
+2017-01-01,17.7825335150636,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",77.37478919924301
+2018-01-01,17.7672904218107,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",-0.08571946871344105
+2019-01-01,16.7705818428763,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",-5.609795051871636
+2020-01-01,15.7591729166667,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",-6.030851736007126
+2021-01-01,15.6445272777113,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",-0.7274851260382631
+2022-01-01,19.1604397412204,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",22.473753288271038
+2023-01-01,30.6264136980311,EGY,FX_annual_fallback,XRNCUSEGA618NRUG,annual,mean,pct_change,"Penn World Table annual exchange rate, national currency per USD.",59.84191444282787
+1997-01-01,4.62560578826438,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,4.62560578826438
+1998-01-01,3.87257546427489,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,3.87257546427489
+1999-01-01,3.07949912638332,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,3.07949912638332
+2000-01-01,2.68380535348546,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,2.68380535348546
+2001-01-01,2.26975720475955,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,2.26975720475955
+2002-01-01,2.73723855000334,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,2.73723855000334
+2003-01-01,4.50777636319303,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,4.50777636319303
+2004-01-01,11.2706193320519,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,11.2706193320519
+2005-01-01,4.86939696871988,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,4.86939696871988
+2006-01-01,7.64452644526434,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,7.64452644526434
+2007-01-01,9.318969057992287,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,9.318969057992287
+2008-01-01,18.3168316831684,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,18.3168316831684
+2009-01-01,11.7634954386443,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,11.7634954386443
+2010-01-01,11.2651882653185,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,11.2651882653185
+2011-01-01,10.0649259874818,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,10.0649259874818
+2012-01-01,7.11172943343082,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,7.11172943343082
+2013-01-01,9.4697198106492,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,9.4697198106492
+2014-01-01,10.0702154687481,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,10.0702154687481
+2015-01-01,10.370490343517,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,10.370490343517
+2016-01-01,13.8136062148289,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,13.8136062148289
+2017-01-01,29.5066083940038,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,29.5066083940038
+2018-01-01,14.4014657807421,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,14.4014657807421
+2019-01-01,9.15279959324803,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,9.15279959324803
+2020-01-01,5.04493288977538,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,5.04493288977538
+2021-01-01,5.21404940513042,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,5.21404940513042
+2022-01-01,13.8956609775177,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,13.8956609775177
+2023-01-01,33.8847763115546,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,33.8847763115546
+2024-01-01,28.2705899322082,EGY,CPI_annual_fallback,FPCPITOTLZGEGY,annual,mean,already_yoy,World Bank annual CPI inflation; already YoY percent.,28.2705899322082
+2000-01-01,2.8491763358,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,2.8491763358
+2001-01-01,2.4172359432,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,2.4172359432
+2002-01-01,2.2575679836,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,2.2575679836
+2003-01-01,3.4119417963,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,3.4119417963
+2004-01-01,8.1513828239,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,8.1513828239
+2005-01-01,8.7034544639,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,8.7034544639
+2006-01-01,4.2921997524,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,4.2921997524
+2007-01-01,10.8824693312,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,10.8824693312
+2008-01-01,11.7416131335,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,11.7416131335
+2009-01-01,16.1609709358,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,16.1609709358
+2010-01-01,11.657959857,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,11.657959857
+2011-01-01,11.0563900517,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,11.0563900517
+2012-01-01,8.6917960089,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,8.6917960089
+2013-01-01,6.9155446756,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,6.9155446756
+2014-01-01,10.0934936081,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,10.0934936081
+2015-01-01,10.9878682842,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,10.9878682842
+2016-01-01,10.2123672705,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,10.2123672705
+2017-01-01,23.5335789175,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,23.5335789175
+2018-01-01,20.8510150247,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,20.8510150247
+2019-01-01,13.8749169593,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,13.8749169593
+2020-01-01,5.7004750396,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,5.7004750396
+2021-01-01,4.4997240401,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,4.4997240401
+2022-01-01,8.5002678497,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,8.5002678497
+2023-01-01,24.3923979333,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,24.3923979333
+2024-01-01,33.3016547406,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,33.3016547406
+2025-01-01,20.4193751311,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,20.4193751311
+2026-01-01,11.7939976305,EGY,CPI_annual_imf_projection_fallback,EGYPCPIPCHPT,annual,mean,already_yoy,IMF annual consumer price inflation; includes projections.,11.7939976305
+2001-01-01,16925000000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,5.908340008009616
+2002-01-01,15800700000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,-6.642836041358935
+2003-01-01,18005500000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,13.953812172878411
+2004-01-01,22948400000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,27.4521673932965
+2005-01-01,27952400000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,21.805441773718435
+2006-01-01,33891200000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,21.24611840128219
+2007-01-01,39428300000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,16.337869417429896
+2008-01-01,53277400000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,35.12477078646556
+2009-01-01,47033500000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,-11.719603434101511
+2010-01-01,46607000000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,-0.906800472003999
+2011-01-01,48446800000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,3.947475701074943
+2012-01-01,45698000000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,-5.673852555793157
+2013-01-01,49014700000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,7.2578668650706835
+2014-01-01,43459800000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,-11.33313067304299
+2015-01-01,44056900000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,1.3739133636141876
+2016-01-01,34783900000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,-21.047781391791066
+2017-01-01,37128300000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,6.739899781220626
+2018-01-01,47313900000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,27.433521060754185
+2019-01-01,52918600000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,11.845778935999785
+2020-01-01,47664900000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,-9.92788924877075
+2021-01-01,44671600000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,-6.279883100562467
+2022-01-01,70832100000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,58.561815560669416
+2023-01-01,74186100000.0,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,4.735141270695076
+2024-01-01,64006118864.8,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,-13.722221730485895
+2025-01-01,64794678123.3,EGY,Exports_annual_fallback,EGYBXUSD,annual,sum,pct_change,IMF annual exports of goods and services in USD.,1.232006052680168
+2001-01-01,102272824989.0,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,-2.366820751835752
+2002-01-01,90261486220.0,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,-11.74440890851689
+2003-01-01,85163499724.0,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,-5.648019669844961
+2004-01-01,82854874615.5,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,-2.7108152154172283
+2005-01-01,94127278082.0,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,13.604997314655542
+2006-01-01,112901946612.7,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,19.946044242715956
+2007-01-01,137055277820.2,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,21.39319288298529
+2008-01-01,170796634833.1,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,24.61879436497485
+2009-01-01,198316208478.0,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,16.1124800098033
+2010-01-01,230024066053.9,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,15.98853559133946
+2011-01-01,247726079591.1,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,7.695722382827541
+2012-01-01,294482244914.8,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,18.874139291622562
+2013-01-01,303194013612.6,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,2.9583341095217763
+2014-01-01,321634374997.1,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,6.082033469190384
+2015-01-01,350119482651.2,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,8.856362960071307
+2016-01-01,351442965839.9,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,0.3780090095753197
+2017-01-01,246825700461.3,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,-29.767921269552023
+2018-01-01,263156311683.4,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,6.616252356046903
+2019-01-01,317894338193.5,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,20.800575201842243
+2020-01-01,382525257758.7,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,20.330943901825528
+2021-01-01,423300333527.5,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,10.659446648754688
+2022-01-01,475231025602.2,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,12.268048938668352
+2023-01-01,393827559462.3,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,-17.129240675468893
+2024-01-01,380043910266.6,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,-3.4999199178744833
+2025-01-01,345874298960.7,EGY,Nominal_GDP_usd_annual_fallback,EGYNGDPDUSD,annual,sum,pct_change,IMF annual current-price GDP in USD; not domestic-currency quarterly.,-8.990964039373782
+1998-01-01,84828807556.0803,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,8.149551566420609
+1999-01-01,90710704806.8416,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,6.933844079881446
+2000-01-01,99838543960.07628,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,10.062582109433936
+2001-01-01,96684636118.5984,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,-3.15900825110097
+2002-01-01,85146067415.7303,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,-11.934231917379613
+2003-01-01,80288461538.4615,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,-5.705026696713156
+2004-01-01,78782467532.4675,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,-1.8757290613578004
+2005-01-01,89660339660.3397,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,13.80747832427216
+2006-01-01,107426086956.522,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,19.81449921278937
+2007-01-01,130437828371.278,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,21.42099937426689
+2008-01-01,162818181818.182,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,24.824357972854806
+2009-01-01,189147005444.646,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,16.170690111172735
+2010-01-01,218983666061.706,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,15.774323546344338
+2011-01-01,235989672977.625,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,7.765879173438894
+2012-01-01,279116666666.667,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,18.2749495538862
+2013-01-01,288434108527.132,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,3.3381889987932123
+2014-01-01,305595408895.265,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,5.949816564956878
+2015-01-01,329366576819.407,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,7.778640395834269
+2016-01-01,332441717791.411,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,0.9336530141278221
+2017-01-01,248362771739.13,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,-25.291334255779518
+2018-01-01,262588632526.73,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,5.7278555429161715
+2019-01-01,318678815489.749,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,21.36047643163279
+2020-01-01,383817841547.09906,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,20.440337697767475
+2021-01-01,424671765455.704,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,10.644091932759103
+2022-01-01,476747720364.742,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,12.262636498368739
+2023-01-01,395926075163.006,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,-16.952707217960562
+2024-01-01,389059911003.566,EGY,Nominal_GDP_wdi_annual_fallback,MKTGDPEGA646NWDB,annual,sum,pct_change,World Bank annual current GDP in USD.,-1.7342035774261966

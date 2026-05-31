@@ -1,13 +1,11 @@
 """
 Multi-step KF forecast after EM estimation (GVAR_LLM_pickle pipeline).
 
-Uses final EM state (theta, P, Q, R) and user-supplied exogenous forecasts (ENSO, COMMODITY).
-Observation uncertainty at horizon h:
-    S_h = H_h P_h H_h' + R
-    se_h = sqrt(diag(S_h))
-    lower/upper = y_hat +/- z * se_h
-
-Without new observations, P grows each step (P <- P + Q), so bands widen.
+Uses the final EM/KF state and user-supplied exogenous forecasts (ENSO, COMMODITY).
+Forecast bands are generated offline by Monte Carlo draws from the last filtered
+parameter covariance P. Each simulated beta is held fixed across the future path
+(Q = R = 0 in the forecast simulation), so uncertainty enters through beta and
+the nonlinear recursion of lagged predicted y.
 """
 
 from __future__ import annotations
@@ -117,6 +115,11 @@ def _all_forecast_target_quarters() -> list[pd.Timestamp]:
 
 
 Z_CI = 1.96
+FORECAST_MC_SIMULATIONS = 500
+FORECAST_MC_SEED = 20260531
+# A two-sided 95% Monte Carlo interval uses the 2.5th and 97.5th percentiles.
+FORECAST_MC_PERCENTILES = (2.5, 97.5)
+FORECAST_MC_INTERVAL_LABEL = "95%"
 # Legacy single-scenario output dirs (mean); multi-scenario uses _scenario_output_dirs().
 OUTPUT_DIR = Path("Dash_Output/forecast")
 OUTPUT_DIR_KF_TRACK = Path("Dash_Output/forecast_kf_track")
@@ -132,12 +135,12 @@ def _scenario_output_dirs(scenario: str) -> dict[str, Path]:
         "kf_track": base / "kf_track",
         "varx_track": base / "varx_track",
     }
-MAX_EM_ITER = 50
+MAX_EM_ITER = 10
 VARX_ROLLING_WINDOW = 40
 # Open-loop multi-step forecasts can explode when the last filtered VAR block has
 # roots outside the unit circle. Keep the fitted in-sample path untouched, but
 # stabilize the forecast-only transition before recursive rollout.
-STABILIZE_FORECAST = True
+STABILIZE_FORECAST = False
 FORECAST_MAX_EIGENVALUE = 0.98
 # Only show the last N quarters of history so the forecast segment is visible.
 HIST_PLOT_QUARTERS = 24
@@ -295,7 +298,6 @@ def _insample_kf_track(
         "y_upper": y_hi[mask],
     }
 
-
 def _varx_window_residual_se(
     X_train: np.ndarray,
     Y_train: np.ndarray,
@@ -428,6 +430,49 @@ def _varx_multistep_forecast(
     return y_hat_fc, y_lo_fc, y_hi_fc
 
 
+def _roll_forecast_path(
+    *,
+    theta: np.ndarray,
+    y_buf0: list[np.ndarray],
+    z_fc: np.ndarray,
+    mY: int,
+    m: int,
+    lags: int,
+) -> np.ndarray:
+    """Recursive deterministic forecast for one fixed beta draw."""
+    theta = np.asarray(theta, dtype=float).reshape(-1, 1)
+    y_buf = [y.copy() for y in y_buf0]
+    n_fc = z_fc.shape[0]
+    y_hat = np.full((n_fc, mY), np.nan)
+
+    for h in range(n_fc):
+        z_row = z_fc[h, :]
+        if not np.isfinite(z_row).all():
+            z_row = np.where(np.isfinite(z_row), z_row, 0.0)
+        H = _build_H(y_buf, z_row, mY, m, lags)
+        yhat = (H @ theta).ravel()
+        y_hat[h, :] = yhat
+        y_buf = [yhat.copy()] + y_buf[:-1]
+
+    return y_hat
+
+
+def _chol_lower_psd(cov: np.ndarray, *, eps: float = 1e-8) -> np.ndarray:
+    """Lower factor for a nearly-PSD covariance, with eigenvalue fallback."""
+    cov = np.asarray(cov, dtype=float)
+    cov = 0.5 * (cov + cov.T)
+    eye = np.eye(cov.shape[0])
+    for scale in (1.0, 10.0, 100.0, 1000.0):
+        try:
+            return np.linalg.cholesky(cov + scale * eps * eye)
+        except np.linalg.LinAlgError:
+            continue
+
+    vals, vecs = np.linalg.eigh(cov)
+    vals = np.maximum(vals, eps)
+    return vecs @ np.diag(np.sqrt(vals))
+
+
 def _roll_kf_forecast(
     *,
     theta0: np.ndarray,
@@ -442,37 +487,50 @@ def _roll_kf_forecast(
     z_ci: float,
     eps: float,
     with_ci: bool = True,
+    mc_simulations: int = FORECAST_MC_SIMULATIONS,
+    mc_seed: int = FORECAST_MC_SEED,
 ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray | None]:
-    """Multi-step KF forecast; returns y_hat and optional (y_lower, y_upper)."""
-    theta = theta0.copy()
-    P = P0.copy()
-    y_buf = [y.copy() for y in y_buf0]
-    n_fc = z_fc.shape[0]
-    y_hat = np.full((n_fc, mY), np.nan)
-    y_lo = np.full((n_fc, mY), np.nan) if with_ci else None
-    y_hi = np.full((n_fc, mY), np.nan) if with_ci else None
+    """Multi-step forecast; optional bands are offline beta/P Monte Carlo.
 
-    for h in range(n_fc):
-        z_row = z_fc[h, :]
-        if not np.isfinite(z_row).all():
-            z_row = np.where(np.isfinite(z_row), z_row, 0.0)
-        H = _build_H(y_buf, z_row, mY, m, lags)
+    Q, R, and z_ci are kept in the signature for backward compatibility, but the
+    forecast band intentionally uses only P0. Each simulated beta is fixed across
+    all future quarters, matching the Q=R=0 Monte Carlo requested for the
+    dashboard forecast pickle.
+    """
+    _ = (Q, R, z_ci)
+    theta = np.asarray(theta0, dtype=float).reshape(-1, 1)
+    y_hat = _roll_forecast_path(
+        theta=theta,
+        y_buf0=y_buf0,
+        z_fc=z_fc,
+        mY=mY,
+        m=m,
+        lags=lags,
+    )
+    if not with_ci:
+        return y_hat, None, None
 
-        P_pred = P + Q
-        P_pred = 0.5 * (P_pred + P_pred.T) + eps * np.eye(P.shape[0])
-        yhat = (H @ theta).ravel()
-        y_hat[h, :] = yhat
+    n_sim = max(1, int(mc_simulations))
+    L = _chol_lower_psd(P0, eps=eps)
+    rng = np.random.default_rng(int(mc_seed))
+    paths = np.full((n_sim, z_fc.shape[0], mY), np.nan)
+    n_pairs = int(np.ceil(n_sim / 2))
+    raw_draws = rng.standard_normal((theta.shape[0], n_pairs))
+    draws = np.concatenate([raw_draws, -raw_draws], axis=1)[:, :n_sim]
+    for s in range(n_sim):
+        beta_draw = theta + L @ draws[:, [s]]
+        paths[s, :, :] = _roll_forecast_path(
+            theta=beta_draw,
+            y_buf0=y_buf0,
+            z_fc=z_fc,
+            mY=mY,
+            m=m,
+            lags=lags,
+        )
 
-        if with_ci and y_lo is not None and y_hi is not None:
-            S = H @ P_pred @ H.T + R
-            S = 0.5 * (S + S.T) + eps * np.eye(mY)
-            lo, hi = _marginal_bounds_from_S(yhat, S, z_ci=z_ci)
-            y_lo[h, :] = lo
-            y_hi[h, :] = hi
-
-        P = P_pred.copy()
-        y_buf = [yhat.copy()] + y_buf[:-1]
-
+    lo_p, hi_p = FORECAST_MC_PERCENTILES
+    y_lo = np.nanpercentile(paths, lo_p, axis=0)
+    y_hi = np.nanpercentile(paths, hi_p, axis=0)
     return y_hat, y_lo, y_hi
 
 
@@ -550,6 +608,8 @@ def forecast_country_from_em(
     res: dict,
     exo_fc: pd.DataFrame,
     *,
+    country: str = "",
+    scenario_name: str = "mean",
     z_ci: float = Z_CI,
     eps: float = 1e-8,
 ) -> dict | None:
@@ -611,6 +671,8 @@ def forecast_country_from_em(
     z_fc = np.where(np.isfinite(z_fc), z_fc, 0.0)
 
     y_buf0 = [Yd[last_t - i, :].copy() for i in range(1, lags + 1)]
+    seed_key = f"{country}:{scenario_name}"
+    mc_seed = FORECAST_MC_SEED + sum(ord(ch) for ch in seed_key)
     y_hat, y_lo, y_hi = _roll_kf_forecast(
         theta0=theta,
         P0=P,
@@ -624,6 +686,7 @@ def forecast_country_from_em(
         z_ci=z_ci,
         eps=eps,
         with_ci=True,
+        mc_seed=mc_seed,
     )
 
     y_hat_enso0 = None
@@ -684,6 +747,16 @@ def forecast_country_from_em(
         "y_hat_enso0": y_hat_enso0,
         "y_lower": y_lo,
         "y_upper": y_hi,
+        "forecast_uncertainty": {
+            "method": "beta_p_monte_carlo",
+            "simulations": FORECAST_MC_SIMULATIONS,
+            "seed": mc_seed,
+            "percentiles": FORECAST_MC_PERCENTILES,
+            "interval": FORECAST_MC_INTERVAL_LABEL,
+            "antithetic_draws": True,
+            "uses_Q": False,
+            "uses_R": False,
+        },
         "kf_insample": kf_insample,
         "varx_insample": varx_insample,
         "varx_y_hat": varx_y_hat,
@@ -736,6 +809,14 @@ def run_forecast_for_countries(
             "enso_scenario": enso_scenario,
             "stabilize_forecast": STABILIZE_FORECAST,
             "forecast_max_eigenvalue": FORECAST_MAX_EIGENVALUE,
+            "forecast_uncertainty_method": "beta_p_monte_carlo",
+            "forecast_mc_simulations": FORECAST_MC_SIMULATIONS,
+            "forecast_mc_seed": FORECAST_MC_SEED,
+            "forecast_mc_percentiles": FORECAST_MC_PERCENTILES,
+            "forecast_mc_interval": FORECAST_MC_INTERVAL_LABEL,
+            "forecast_mc_antithetic_draws": True,
+            "forecast_ci_uses_Q": False,
+            "forecast_ci_uses_R": False,
             "forecast_target_quarters": [pd.Timestamp(x).isoformat() for x in FORECAST_TARGET_QUARTERS],
         },
         "exo_forecast": exo_fc,
@@ -758,7 +839,13 @@ def run_forecast_for_countries(
         if prep is None or res is None:
             print(f"[SKIP] {country}: no EM result")
             continue
-        fc = forecast_country_from_em(prep, res, exo_fc)
+        fc = forecast_country_from_em(
+            prep,
+            res,
+            exo_fc,
+            country=country,
+            scenario_name=enso_scenario,
+        )
         if fc is None:
             print(f"[SKIP] {country}: forecast failed")
             continue
@@ -780,6 +867,14 @@ def _empty_scenario_bundle(path: str, scenario: str, exo_fc: pd.DataFrame) -> di
             "enso_scenario": scenario,
             "stabilize_forecast": STABILIZE_FORECAST,
             "forecast_max_eigenvalue": FORECAST_MAX_EIGENVALUE,
+            "forecast_uncertainty_method": "beta_p_monte_carlo",
+            "forecast_mc_simulations": FORECAST_MC_SIMULATIONS,
+            "forecast_mc_seed": FORECAST_MC_SEED,
+            "forecast_mc_percentiles": FORECAST_MC_PERCENTILES,
+            "forecast_mc_interval": FORECAST_MC_INTERVAL_LABEL,
+            "forecast_mc_antithetic_draws": True,
+            "forecast_ci_uses_Q": False,
+            "forecast_ci_uses_R": False,
             "forecast_target_quarters": [pd.Timestamp(x).isoformat() for x in FORECAST_TARGET_QUARTERS],
         },
         "exo_forecast": exo_fc,
@@ -822,7 +917,13 @@ def run_forecast_all_enso_scenarios(
             print(f"[SKIP] {country}: no EM result")
             continue
         for scenario, exo_fc in exo_by_scenario.items():
-            fc = forecast_country_from_em(prep, res, exo_fc)
+            fc = forecast_country_from_em(
+                prep,
+                res,
+                exo_fc,
+                country=country,
+                scenario_name=scenario,
+            )
             if fc is None:
                 print(f"[SKIP] {country} [{scenario}]: forecast failed")
                 continue
