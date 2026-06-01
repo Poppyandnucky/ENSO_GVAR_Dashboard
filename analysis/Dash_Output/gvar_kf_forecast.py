@@ -694,7 +694,15 @@ def forecast_country_from_em(
     if "ENSO" in EXO_use:
         enso_j = EXO_use.index("ENSO")
         z_fc_enso0 = z_fc.copy()
-        z_fc_enso0[:, enso_j] = 0.0
+        # ENSO=0 is defined in raw ENSO units. In standardized model space this
+        # is (0 - mean_enso) / sd_enso, not z=0. Keep observed/panel ENSO values
+        # before the forecast scenario starts; set ENSO to zero only for rows
+        # marked as forecasted ENSO.
+        if "ENSO_source" in exo_fc.columns:
+            enso0_mask = exo_fc["ENSO_source"].astype(str).eq("forecast").to_numpy()
+        else:
+            enso0_mask = np.ones(len(z_fc_enso0), dtype=bool)
+        z_fc_enso0[enso0_mask, enso_j] = (0.0 - mu_x[enso_j]) / sd_x[enso_j]
         y_hat_enso0, _, _ = _roll_kf_forecast(
             theta0=theta,
             P0=P,
@@ -759,6 +767,11 @@ def forecast_country_from_em(
             "uses_Q": True,
             "uses_R": False,
             "initial_beta_assumed_known": True,
+        },
+        "enso0_baseline": {
+            "raw_enso_value": 0.0,
+            "applies_to_enso_source": "forecast",
+            "keeps_panel_enso_before_forecast_start": True,
         },
         "kf_insample": kf_insample,
         "varx_insample": varx_insample,
@@ -989,7 +1002,7 @@ def plot_forecast_paths(
                     linestyle="-",
                     marker="x",
                     markersize=4,
-                    label="ENSO=0 (z-space)" if j == 0 else None,
+                    label="ENSO=0 baseline" if j == 0 else None,
                 )
             ax.fill_between(
                 fq,
@@ -1133,7 +1146,7 @@ def _plot_track_paths(
                 linestyle="-",
                 marker="x",
                 markersize=4,
-                label="ENSO=0 (z-space)" if j == 0 else None,
+                label="ENSO=0 baseline" if j == 0 else None,
             )
             if np.any(out_fc0):
                 ax.scatter(
