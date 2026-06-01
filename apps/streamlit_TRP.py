@@ -1331,13 +1331,14 @@ with control_cols[2]:
     st.caption("Dashboard uses the offline EM/KF pickle and precomputed Dash_Output charts; no online KF fitting is run.")
 
 # ----- STREAMLIT TABS
-tab_climate_risk, tab_scenario, tab_event_study, tab_structural_break, tab_guide = st.tabs(
+tab_climate_risk, tab_scenario, tab_event_study, tab_structural_break, tab_guide, tab_feedback = st.tabs(
     [
         "Climate Early-Warning Chain",
         "Scenario Impacts",
         "ENSO Peak Event Study",
         "Structural Break Analysis",
         "Dashboard Guide",
+        "Feedback",
     ]
 )
 
@@ -2471,13 +2472,14 @@ with tab_guide:
             st.markdown(f"**Interpretation**  \n{interpretation}")
             st.markdown(f"**Key question**  \n{question}")
 
-    with st.expander("Feedback", expanded=False):
-        st.markdown(
-            "Use this form to report bugs, confusing results, interpretation issues, "
-            "or suggestions for improving the dashboard."
-        )
-        components.iframe(
-            "https://docs.google.com/forms/d/e/1FAIpQLSdIKiK6GnJ902abmwt7-OO5k2OAOcQ6Dqnn_fkj1S_gZREA1g/viewform?embedded=true",
-            height=775,
-            scrolling=True,
-        )
+with tab_feedback:
+    st.header("Feedback")
+    st.markdown(
+        "Use this form to report bugs, confusing results, interpretation issues, "
+        "or suggestions for improving the dashboard."
+    )
+    components.iframe(
+        "https://docs.google.com/forms/d/e/1FAIpQLSdIKiK6GnJ902abmwt7-OO5k2OAOcQ6Dqnn_fkj1S_gZREA1g/viewform?embedded=true",
+        height=775,
+        scrolling=True,
+    )
