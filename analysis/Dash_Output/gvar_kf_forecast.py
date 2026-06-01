@@ -117,6 +117,7 @@ def _all_forecast_target_quarters() -> list[pd.Timestamp]:
 Z_CI = 1.96
 FORECAST_MC_SIMULATIONS = 500
 FORECAST_MC_SEED = 20260531
+FORECAST_MC_METHOD = "beta_q_random_walk_monte_carlo"
 FORECAST_MC_BAND_METHOD = "mean_plus_minus_one_std"
 FORECAST_MC_INTERVAL_LABEL = "+/- 1 standard deviation"
 # Legacy single-scenario output dirs (mean); multi-scenario uses _scenario_output_dirs().
@@ -489,14 +490,13 @@ def _roll_kf_forecast(
     mc_simulations: int = FORECAST_MC_SIMULATIONS,
     mc_seed: int = FORECAST_MC_SEED,
 ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray | None]:
-    """Multi-step forecast; optional bands are offline beta/P Monte Carlo.
+    """Multi-step forecast; optional bands are offline beta/Q Monte Carlo.
 
-    Q, R, and z_ci are kept in the signature for backward compatibility, but the
-    forecast band intentionally uses only P0. Each simulated beta is fixed across
-    all future quarters, matching the Q=R=0 Monte Carlo requested for the
-    dashboard forecast pickle.
+    P0, R, and z_ci are kept in the signature for backward compatibility. The
+    forecast band intentionally sets P=0 and R=0, starts from the last filtered
+    beta as known, and evolves beta forward with the Kalman-filter Q.
     """
-    _ = (Q, R, z_ci)
+    _ = (P0, R, z_ci)
     theta = np.asarray(theta0, dtype=float).reshape(-1, 1)
     y_hat = _roll_forecast_path(
         theta=theta,
@@ -510,22 +510,24 @@ def _roll_kf_forecast(
         return y_hat, None, None
 
     n_sim = max(1, int(mc_simulations))
-    L = _chol_lower_psd(P0, eps=eps)
+    L = _chol_lower_psd(Q, eps=eps)
     rng = np.random.default_rng(int(mc_seed))
     paths = np.full((n_sim, z_fc.shape[0], mY), np.nan)
     n_pairs = int(np.ceil(n_sim / 2))
-    raw_draws = rng.standard_normal((theta.shape[0], n_pairs))
-    draws = np.concatenate([raw_draws, -raw_draws], axis=1)[:, :n_sim]
+    raw_draws = rng.standard_normal((theta.shape[0], n_pairs, z_fc.shape[0]))
+    draws = np.concatenate([raw_draws, -raw_draws], axis=1)[:, :n_sim, :]
     for s in range(n_sim):
-        beta_draw = theta + L @ draws[:, [s]]
-        paths[s, :, :] = _roll_forecast_path(
-            theta=beta_draw,
-            y_buf0=y_buf0,
-            z_fc=z_fc,
-            mY=mY,
-            m=m,
-            lags=lags,
-        )
+        beta_draw = theta.copy()
+        y_buf = [y.copy() for y in y_buf0]
+        for h in range(z_fc.shape[0]):
+            beta_draw = beta_draw + L @ draws[:, [s], h]
+            z_row = z_fc[h, :]
+            if not np.isfinite(z_row).all():
+                z_row = np.where(np.isfinite(z_row), z_row, 0.0)
+            H = _build_H(y_buf, z_row, mY, m, lags)
+            yhat_s = (H @ beta_draw).ravel()
+            paths[s, h, :] = yhat_s
+            y_buf = [yhat_s.copy()] + y_buf[:-1]
 
     sim_sd = np.nanstd(paths, axis=0, ddof=1)
     y_lo = y_hat - sim_sd
@@ -747,14 +749,16 @@ def forecast_country_from_em(
         "y_lower": y_lo,
         "y_upper": y_hi,
         "forecast_uncertainty": {
-            "method": "beta_p_monte_carlo",
+            "method": FORECAST_MC_METHOD,
             "simulations": FORECAST_MC_SIMULATIONS,
             "seed": mc_seed,
             "band_method": FORECAST_MC_BAND_METHOD,
             "interval": FORECAST_MC_INTERVAL_LABEL,
             "antithetic_draws": True,
-            "uses_Q": False,
+            "uses_P": False,
+            "uses_Q": True,
             "uses_R": False,
+            "initial_beta_assumed_known": True,
         },
         "kf_insample": kf_insample,
         "varx_insample": varx_insample,
@@ -808,14 +812,16 @@ def run_forecast_for_countries(
             "enso_scenario": enso_scenario,
             "stabilize_forecast": STABILIZE_FORECAST,
             "forecast_max_eigenvalue": FORECAST_MAX_EIGENVALUE,
-            "forecast_uncertainty_method": "beta_p_monte_carlo",
+            "forecast_uncertainty_method": FORECAST_MC_METHOD,
             "forecast_mc_simulations": FORECAST_MC_SIMULATIONS,
             "forecast_mc_seed": FORECAST_MC_SEED,
             "forecast_mc_band_method": FORECAST_MC_BAND_METHOD,
             "forecast_mc_interval": FORECAST_MC_INTERVAL_LABEL,
             "forecast_mc_antithetic_draws": True,
-            "forecast_ci_uses_Q": False,
+            "forecast_ci_uses_P": False,
+            "forecast_ci_uses_Q": True,
             "forecast_ci_uses_R": False,
+            "forecast_initial_beta_assumed_known": True,
             "forecast_target_quarters": [pd.Timestamp(x).isoformat() for x in FORECAST_TARGET_QUARTERS],
         },
         "exo_forecast": exo_fc,
@@ -866,14 +872,16 @@ def _empty_scenario_bundle(path: str, scenario: str, exo_fc: pd.DataFrame) -> di
             "enso_scenario": scenario,
             "stabilize_forecast": STABILIZE_FORECAST,
             "forecast_max_eigenvalue": FORECAST_MAX_EIGENVALUE,
-            "forecast_uncertainty_method": "beta_p_monte_carlo",
+            "forecast_uncertainty_method": FORECAST_MC_METHOD,
             "forecast_mc_simulations": FORECAST_MC_SIMULATIONS,
             "forecast_mc_seed": FORECAST_MC_SEED,
             "forecast_mc_band_method": FORECAST_MC_BAND_METHOD,
             "forecast_mc_interval": FORECAST_MC_INTERVAL_LABEL,
             "forecast_mc_antithetic_draws": True,
-            "forecast_ci_uses_Q": False,
+            "forecast_ci_uses_P": False,
+            "forecast_ci_uses_Q": True,
             "forecast_ci_uses_R": False,
+            "forecast_initial_beta_assumed_known": True,
             "forecast_target_quarters": [pd.Timestamp(x).isoformat() for x in FORECAST_TARGET_QUARTERS],
         },
         "exo_forecast": exo_fc,

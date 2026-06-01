@@ -570,7 +570,7 @@ def plot_core_forecast(plot_df, response_var):
                 )
             )
     fig.update_layout(
-        title=f"{response_var}: forecast path (mean with +/- 1 SD ENSO + beta MC band)",
+        title=f"{response_var}: forecast path (mean with +/- 1 SD ENSO + beta RW band)",
         xaxis_title="Quarter",
         yaxis_title=response_var,
         legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="left", x=0),
@@ -639,7 +639,7 @@ def plot_selected_country_forecast(plot_df, response_var, country_label):
                 x=mean.index,
                 y=mean,
                 mode="lines+markers",
-                name="Forecast",
+                name="Forecasted ENSO scenario",
                 line=dict(color=color, width=2),
                 marker=dict(color=color),
                 hovertemplate=f"Forecast<br>%{{x|%Y-Q%q}}<br>{response_var}: %{{y:.2f}}<extra></extra>",
@@ -669,15 +669,15 @@ def plot_selected_country_forecast(plot_df, response_var, country_label):
                     x=no_enso.index,
                     y=no_enso,
                     mode="lines+markers",
-                    name="Forecast if ENSO = 0",
+                    name="ENSO = 0 baseline",
                     line=dict(color="#111111", width=2, dash="dash"),
                     marker=dict(color="#111111"),
-                    hovertemplate=f"ENSO = 0<br>%{{x|%Y-Q%q}}<br>{response_var}: %{{y:.2f}}<extra></extra>",
+                    hovertemplate=f"ENSO = 0 baseline<br>%{{x|%Y-Q%q}}<br>{response_var}: %{{y:.2f}}<extra></extra>",
                 )
             )
 
     fig.update_layout(
-        title=f"{country_label}: {response_var} path (+/- 1 SD ENSO + beta MC band)",
+        title=f"{country_label}: {response_var} ENSO scenario calibration: forecasted ENSO vs ENSO = 0 baseline",
         xaxis_title="Quarter",
         yaxis_title=response_var,
         legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="left", x=0),
@@ -787,11 +787,14 @@ def plot_enso_forecast_online(forecast_bundle, panel_df, plot_start=pd.Timestamp
     return fig
 
 
-def plot_metric_impact_map(summary_df, response_var):
+def plot_metric_impact_map(summary_df, response_var, countries=None):
     if summary_df.empty:
         return None
+    countries = list(countries or summary_df["country"].dropna().astype(str).unique())
+    if not countries:
+        return None
     world = gpd.read_file(_ROOT / "data" / "natural_earth" / "ne_110m_admin_0_countries.shp")
-    df = world[world["ISO_A3"].isin(DASHBOARD_COUNTRIES)].merge(
+    df = world[world["ISO_A3"].isin(countries)].merge(
         summary_df,
         left_on="ISO_A3",
         right_on="country",
@@ -1547,39 +1550,6 @@ with tab_scenario:
         else:
             st.plotly_chart(fig_selected, width="stretch")
 
-        previous_scenario_country = st.session_state.get("_scenario_country_select")
-        if previous_scenario_country != country:
-            st.session_state["scenario_countries"] = [country]
-            st.session_state["_scenario_country_select"] = country
-        else:
-            current_scenario_countries = st.session_state.get("scenario_countries")
-            if not current_scenario_countries:
-                st.session_state["scenario_countries"] = [country]
-            else:
-                st.session_state["scenario_countries"] = [
-                    c for c in current_scenario_countries if c in country_options
-                ] or [country]
-
-        st.subheader("Multi-country comparison")
-        scenario_countries = st.multiselect(
-            "Countries",
-            options=country_options,
-            format_func=iso3_to_label,
-            key="scenario_countries",
-            help=HELP_TEXT["scenario_countries"],
-        )
-        comparison_df = build_forecast_plot_df(
-            forecast_pack["bundle"],
-            panel,
-            scenario_countries,
-            response_var,
-        )
-        fig_core = plot_core_forecast(comparison_df, response_var)
-        if fig_core is None:
-            st.info("Forecast pickle does not contain data for the selected comparison countries/response.")
-        else:
-            st.plotly_chart(fig_core, width="stretch")
-
         if not q_summary.empty:
             st.subheader("Forecast impact ranges vs no ENSO baseline")
             scenario_start = selected_df.loc[
@@ -1640,21 +1610,59 @@ with tab_scenario:
                     width="stretch",
                 )
 
-            st.subheader("Cumulative impact maps")
+        previous_scenario_country = st.session_state.get("_scenario_country_select")
+        if previous_scenario_country != country:
+            st.session_state["scenario_countries"] = [country]
+            st.session_state["_scenario_country_select"] = country
+        else:
+            current_scenario_countries = st.session_state.get("scenario_countries")
+            if not current_scenario_countries:
+                st.session_state["scenario_countries"] = [country]
+            else:
+                st.session_state["scenario_countries"] = [
+                    c for c in current_scenario_countries if c in country_options
+                ] or [country]
+
+        st.subheader("Multi-country comparison and cumulative impact maps")
+        scenario_countries = st.multiselect(
+            "Countries",
+            options=country_options,
+            format_func=iso3_to_label,
+            key="scenario_countries",
+            help=HELP_TEXT["scenario_countries"],
+        )
+        comparison_df = build_forecast_plot_df(
+            forecast_pack["bundle"],
+            panel,
+            scenario_countries,
+            response_var,
+        )
+        fig_core = plot_core_forecast(comparison_df, response_var)
+        if fig_core is None:
+            st.info("Forecast pickle does not contain data for the selected comparison countries/response.")
+        else:
+            st.plotly_chart(fig_core, width="stretch")
+
+        st.markdown("**Cumulative impact maps**")
+        if not scenario_countries:
+            st.info("Select at least one country to draw cumulative impact maps.")
+        else:
             map_cols = st.columns(2)
             for i, metric in enumerate([v for v in MACRO_IMPACT_VARS if v in panel.columns]):
                 metric_df = build_forecast_plot_df(
                     forecast_pack["bundle"],
                     panel,
-                    [country],
+                    scenario_countries,
                     metric,
                     history_start=None,
                 )
                 _, metric_summary = summarize_forecast_ranges(metric_df)
-                fig_map = plot_metric_impact_map(metric_summary, metric)
+                fig_map = plot_metric_impact_map(metric_summary, metric, countries=scenario_countries)
                 with map_cols[i % 2]:
                     if fig_map is not None:
                         st.plotly_chart(fig_map, width="stretch")
+                    else:
+                        st.info(f"No cumulative impact map data for {metric}.")
 
 
 with tab_event_study:
