@@ -71,7 +71,7 @@ HELP_TEXT = {
     "llm_overlay": "Adds highlighted years where the Gemini/LLM evidence flags a supported structural break.",
     "score_series": "Score diagnostics to plot. Innovation captures forecast surprise; coefficient change captures parameter movement; composite combines available signals.",
     "wb_year": "World Bank document year used to display the top supporting document records.",
-    "impact_window": "Number of forward quarters used to average raw macro impact and model-surprise scores.",
+    "impact_window": "Number of future quarters used when computing observed-impact and model-surprise scores. Larger values emphasize longer-lasting changes and reduce sensitivity to short-term fluctuations.",
     "map_year": "Pre-generated structural-break map year to display.",
 }
 
@@ -156,6 +156,11 @@ def render_tab_description(section_index):
             st.markdown(f"- {item}")
         st.markdown(f"**Interpretation**  \n{interpretation}")
         st.markdown(f"**Key question**  \n{question}")
+
+
+def render_help_button(container, text, key):
+    container.button("?", key=key, help=text)
+
 
 def get_country_regime_ts(panel, country):
     df = panel[panel["country"] == country].copy()
@@ -1085,18 +1090,18 @@ def plot_impact_overlap(raw_yearly, surprise_yearly, info_years, climate_years, 
                 x=raw_yearly["year"],
                 y=raw_yearly["raw_impact_score"],
                 mode="lines+markers",
-                name="Raw impact",
+                name="Observed impact",
                 line=dict(color="#d95f02"),
                 customdata=np.asarray(raw_custom, dtype=object),
                 hovertemplate=(
                     "Country: " + iso3
                     + "<br>Year: %{x}"
-                    + "<br>Raw impact score: %{y:.3f}"
-                    + "<br>Model surprise score: %{customdata[4]:.3f}"
-                    + "<br>Info break year: %{customdata[0]}"
+                    + "<br>Observed-impact score: %{y:.3f}"
+                    + "<br>Model-surprise score: %{customdata[4]:.3f}"
+                    + "<br>Documented break year: %{customdata[0]}"
                     + "<br>Climate-related break year: %{customdata[1]}"
-                    + "<br>Top-5 raw impact: %{customdata[2]}"
-                    + "<br>Top-5 model surprise: %{customdata[3]}"
+                    + "<br>Top-5 observed-impact year: %{customdata[2]}"
+                    + "<br>Top-5 model-surprise year: %{customdata[3]}"
                     + "<extra></extra>"
                 ),
             )
@@ -1125,12 +1130,12 @@ def plot_impact_overlap(raw_yearly, surprise_yearly, info_years, climate_years, 
                 hovertemplate=(
                     "Country: " + iso3
                     + "<br>Year: %{x}"
-                    + "<br>Model surprise score: %{y:.3f}"
-                    + "<br>Raw impact score: %{customdata[4]:.3f}"
-                    + "<br>Info break year: %{customdata[0]}"
+                    + "<br>Model-surprise score: %{y:.3f}"
+                    + "<br>Observed-impact score: %{customdata[4]:.3f}"
+                    + "<br>Documented break year: %{customdata[0]}"
                     + "<br>Climate-related break year: %{customdata[1]}"
-                    + "<br>Top-5 raw impact: %{customdata[2]}"
-                    + "<br>Top-5 model surprise: %{customdata[3]}"
+                    + "<br>Top-5 observed-impact year: %{customdata[2]}"
+                    + "<br>Top-5 model-surprise year: %{customdata[3]}"
                     + "<extra></extra>"
                 ),
             )
@@ -1165,7 +1170,7 @@ def plot_impact_overlap(raw_yearly, surprise_yearly, info_years, climate_years, 
         )
 
     fig.update_layout(
-        title=f"{iso3}: raw impact vs model surprise",
+        title=f"{iso3}: Observed impact, model surprise, and candidate structural-break years",
         xaxis_title="Year",
         yaxis_title="Percentile score, forward-window averaged",
         yaxis=dict(range=[0, 1]),
@@ -1173,6 +1178,69 @@ def plot_impact_overlap(raw_yearly, surprise_yearly, info_years, climate_years, 
         margin=dict(l=20, r=20, t=70, b=40),
     )
     return fig, raw_top, surprise_top
+
+
+def render_break_shading_legend():
+    text_col, help_col = st.columns([0.97, 0.03])
+    text_col.caption(
+        "Shaded regions indicate years identified as potential structural breaks based on "
+        "documentary evidence, unusually large economic changes, or unusually large model surprises."
+    )
+    render_help_button(
+        help_col,
+        "Observed impact measures the magnitude of observed economic changes. Model surprise "
+        "measures how difficult those changes were for the model to explain. Shaded regions "
+        "highlight candidate structural-break years identified from documentary evidence, top "
+        "observed-impact years, and top model-surprise years. Years in which multiple indicators "
+        "coincide may provide stronger evidence of structural change.",
+        "break_shading_help",
+    )
+    legend_items = [
+        (
+            "#FFD700",
+            "Documented break year",
+            "supported by documentary evidence (policy reforms, crises, droughts, trade changes, etc.)",
+        ),
+        (
+            "#d95f02",
+            "Top-5 observed-impact year",
+            "unusually large economic changes in the data",
+        ),
+        (
+            "#1f77b4",
+            "Top-5 model-surprise year",
+            "unusually difficult to explain changes using the model alone",
+        ),
+    ]
+    cols = st.columns([1.15, 1.25, 1.25])
+    for col, (color, label, help_text) in zip(cols, legend_items):
+        with col:
+            label_col, help_col = st.columns([0.88, 0.12])
+            label_col.markdown(
+                f"""
+                <span style="display:inline-block;width:10px;height:10px;background:{color};opacity:0.65;border:1px solid #bbb;margin-right:6px;"></span>
+                {label}
+                """,
+                unsafe_allow_html=True,
+            )
+            render_help_button(help_col, help_text, f"break_legend_help_{label}")
+
+
+def render_map_color_legend():
+    legend_items = [
+        ("#1f77b4", "Structural break"),
+        ("#2ca02c", "Potential climate-related structural break"),
+    ]
+    cols = st.columns([0.35, 0.65])
+    for col, (color, label) in zip(cols, legend_items):
+        with col:
+            st.markdown(
+                f"""
+                <span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:{color};border:1px solid #777;margin-right:6px;"></span>
+                {label}
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 def build_enso_coeff_df_from_offline(country_pack):
@@ -1230,7 +1298,7 @@ def build_enso_peak_event_study(
     df["quarter"] = pd.to_datetime(df["quarter"], errors="coerce")
     vars_use = [v for v in MACRO_IMPACT_VARS if v in df.columns]
 
-    if value_mode == "ENSO model contribution":
+    if value_mode == "Estimated ENSO Effects":
         scenarios = _forecast_scenarios(forecast_bundle)
         scenario_bundle = scenarios.get("mean") or next(iter(scenarios.values()), {})
         country_pack = scenario_bundle.get("per_country", {}).get(country, {})
@@ -1282,7 +1350,7 @@ def build_enso_peak_event_study(
                 y = pd.to_numeric(row[v], errors="coerce")
                 y0 = pd.to_numeric(base[v], errors="coerce")
                 if pd.notna(y) and pd.notna(y0):
-                    if value_mode == "ENSO model contribution":
+                    if value_mode == "Estimated ENSO Effects":
                         value = 0.0 if q <= origin_period else y
                     else:
                         value = y - y0
@@ -1356,7 +1424,7 @@ def plot_enso_peaks(panel_df, peak_df, selected_peak_labels=None):
             )
 
     fig.update_layout(
-        title="ENSO index with top peaks labeled",
+        title="ENSO index with peaks labeled",
         xaxis_title="Quarter",
         yaxis_title="ENSO",
         height=380,
@@ -1409,16 +1477,15 @@ with control_cols[1]:
         key="response_select",
         help=HELP_TEXT["response"],
     )
-with control_cols[2]:
-    st.caption("Dashboard uses the offline EM/KF pickle and precomputed Dash_Output charts; no online KF fitting is run.")
 
 # ----- STREAMLIT TABS
-tab_climate_risk, tab_scenario, tab_event_study, tab_structural_break, tab_feedback = st.tabs(
+tab_climate_risk, tab_scenario, tab_event_study, tab_structural_break, tab_guide, tab_feedback = st.tabs(
     [
         "Climate Early-Warning Chain",
         "Scenario Impacts",
         "ENSO Peak Event Study",
         "Structural Break Analysis",
+        "Dashboard Guide",
         "Feedback",
     ]
 )
@@ -1510,19 +1577,29 @@ with tab_climate_risk:
         "and provide context for scenario selection."
     )
 
-    st.subheader("Early-warning comparison across countries")
+    st.subheader("Country comparison of next-quarter climate stress risk")
+    st.caption(
+        "Probabilities are conditioned on the selected ENSO forecast and represent the likelihood "
+        "of exceeding the specified climate-stress threshold during the next quarter."
+    )
+    st.caption(
+        "Interpretation note: Both extreme heat and moisture stress can be influenced by ENSO "
+        "conditions. However, moisture stress often occurs even in the absence of ENSO events, "
+        "so ENSO-conditioned changes in moisture-stress probabilities are generally smaller and "
+        "should be interpreted more cautiously than changes in heat-stress probabilities."
+    )
     risk_table = prob_rows_df.sort_values("Heat probability (%)", ascending=False)
     st.dataframe(
         risk_table,
         column_config={
             "Country": st.column_config.TextColumn("Country"),
             "Heat probability (%)": st.column_config.NumberColumn(
-                "Heat Probability",
+                "Extreme Heat Risk",
                 format="%.1f%%",
                 help=HELP_TEXT["risk_summary"],
             ),
             "Moisture probability (%)": st.column_config.NumberColumn(
-                "Moisture Probability",
+                "Moisture Stress (Drought) Risk",
                 format="%.1f%%",
                 help=HELP_TEXT["risk_summary"],
             ),
@@ -1636,18 +1713,11 @@ with tab_scenario:
 
         if not q_summary.empty:
             st.subheader("Impacts based on forecasted ENSO (min, mean, max) and future ENSO = 0")
-            scenario_start = selected_df.loc[
-                selected_df["period_type"].eq("Scenario forecast"), "quarter"
-            ].min()
-            scenario_start_label = (
-                pd.Period(scenario_start, freq="Q")
-                if pd.notna(scenario_start)
-                else "the scenario period"
-            )
             st.caption(
-                f"ENSO and commodity values already observed in the panel are used before {scenario_start_label}. "
-                "Rows marked `Gap fill / nowcast` fill missing near-term country outcomes before the "
-                "scenario period; cumulative impacts and maps are based on `Scenario forecast` rows."
+                "Historical observations are used through 2026Q1. Where recent economic data are "
+                "unavailable, near-term values are estimated before the forecast period begins. "
+                "Reported cumulative impacts and maps reflect the projected effects of the selected "
+                "ENSO scenario from 2026Q2 onward."
             )
             for c in [country]:
                 c_quarters = q_summary[q_summary["country"] == c].copy()
@@ -1753,12 +1823,14 @@ with tab_event_study:
     st.header("ENSO Peak Event Study")
     render_tab_description(2)
     st.caption(
-        "The ENSO peak is aligned at t=0. Raw data mode subtracts the value two quarters "
-        "before the peak. Model contribution mode shows the estimated ENSO counterfactual "
-        "difference, also anchored two quarters before the peak."
+        "The quarter of each ENSO peak is aligned at t=0. Observed Responses show how each "
+        "indicator changed relative to its value two quarters before the peak. Estimated ENSO "
+        "Effects show the model-estimated impact of ENSO, calculated as the difference between "
+        "simulations with the historical ENSO event and simulations in which ENSO is removed "
+        "beginning two quarters before the peak."
     )
 
-    event_cols = st.columns([1, 1, 3])
+    event_cols = st.columns([1, 4])
     with event_cols[0]:
         event_country = st.selectbox(
             "Country",
@@ -1767,13 +1839,7 @@ with tab_event_study:
             format_func=iso3_to_label,
             key="event_country",
         )
-    with event_cols[1]:
-        event_mode = st.radio(
-            "Series",
-            ["Raw data", "ENSO model contribution"],
-            horizontal=True,
-            key="event_mode",
-        )
+    st.session_state.pop("event_mode", None)
 
     event_forecast_pack = load_forecast_bundle(forecast_pickle_state())
     event_pipeline_pack = load_pipeline_break_scores()
@@ -1782,7 +1848,7 @@ with tab_event_study:
         event_forecast_pack["bundle"],
         event_pipeline_pack,
         event_country,
-        event_mode,
+        "Observed Responses",
     )
 
     peak_table = peak_df.copy()
@@ -1804,73 +1870,88 @@ with tab_event_study:
     if fig_enso_peaks is not None:
         st.plotly_chart(fig_enso_peaks, width="stretch")
 
-    event_df, _ = build_enso_peak_event_study(
-        panel,
-        event_forecast_pack["bundle"],
-        event_pipeline_pack,
-        event_country,
-        event_mode,
-        selected_peak_labels=selected_peaks,
-    )
-
     if not selected_peaks:
         st.info("Select at least one ENSO peak to plot.")
-    elif event_df.empty:
-        st.info("No event-study data available for the selected country and series.")
     else:
-        fig_event = make_subplots(
-            rows=2,
-            cols=2,
-            subplot_titles=[v.replace("_", " ") for v in MACRO_IMPACT_VARS],
-            horizontal_spacing=0.10,
-            vertical_spacing=0.16,
-        )
-        colors = px.colors.qualitative.Plotly
-        events = event_df[["event_label", "peak_quarter"]].drop_duplicates().sort_values("peak_quarter")
-        color_map = {event.event_label: colors[i % len(colors)] for i, event in enumerate(events.itertuples())}
+        def render_event_mode_plot(event_mode):
+            event_df, _ = build_enso_peak_event_study(
+                panel,
+                event_forecast_pack["bundle"],
+                event_pipeline_pack,
+                event_country,
+                event_mode,
+                selected_peak_labels=selected_peaks,
+            )
+            if event_df.empty:
+                st.info(f"No event-study data available for {event_mode}.")
+                return
 
-        for i, var in enumerate(MACRO_IMPACT_VARS):
-            r = i // 2 + 1
-            c = i % 2 + 1
-            vdf = event_df[event_df["variable"] == var]
-            for event_label, edf in vdf.groupby("event_label"):
-                fig_event.add_trace(
-                    go.Scatter(
-                        x=edf["relative_quarter"],
-                        y=edf["value"],
-                        mode="lines+markers",
-                        name=event_label,
-                        legendgroup=event_label,
-                        showlegend=(i == 0),
-                        line=dict(color=color_map[event_label]),
-                        marker=dict(color=color_map[event_label]),
-                        hovertemplate=(
-                            "ENSO peak: %{fullData.name}"
-                            "<br>Relative quarter: %{x}"
-                            "<br>Difference: %{y:.2f}"
-                            "<extra></extra>"
+            fig_event = make_subplots(
+                rows=2,
+                cols=2,
+                subplot_titles=[v.replace("_", " ") for v in MACRO_IMPACT_VARS],
+                horizontal_spacing=0.10,
+                vertical_spacing=0.16,
+            )
+            colors = px.colors.qualitative.Plotly
+            events = event_df[["event_label", "peak_quarter"]].drop_duplicates().sort_values("peak_quarter")
+            color_map = {event.event_label: colors[i % len(colors)] for i, event in enumerate(events.itertuples())}
+
+            for i, var in enumerate(MACRO_IMPACT_VARS):
+                r = i // 2 + 1
+                c = i % 2 + 1
+                vdf = event_df[event_df["variable"] == var]
+                for event_label, edf in vdf.groupby("event_label"):
+                    fig_event.add_trace(
+                        go.Scatter(
+                            x=edf["relative_quarter"],
+                            y=edf["value"],
+                            mode="lines+markers",
+                            name=event_label,
+                            legendgroup=event_label,
+                            showlegend=(i == 0),
+                            line=dict(color=color_map[event_label]),
+                            marker=dict(color=color_map[event_label]),
+                            hovertemplate=(
+                                "ENSO peak: %{fullData.name}"
+                                "<br>Relative quarter: %{x}"
+                                "<br>Difference: %{y:.2f}"
+                                "<extra></extra>"
+                            ),
                         ),
-                    ),
-                    row=r,
-                    col=c,
-                )
-            fig_event.add_hline(y=0, line_dash="dot", line_color="#999", row=r, col=c)
-            fig_event.add_vline(x=0, line_dash="dash", line_color="#444", row=r, col=c)
+                        row=r,
+                        col=c,
+                    )
+                fig_event.add_hline(y=0, line_dash="dot", line_color="#999", row=r, col=c)
+                fig_event.add_vline(x=0, line_dash="dash", line_color="#444", row=r, col=c)
 
-        fig_event.update_layout(
-            title=f"{event_country}: top-5 ENSO peak windows ({event_mode})",
-            height=720,
-            margin=dict(l=30, r=20, t=80, b=80),
-            legend=dict(orientation="h", yanchor="top", y=-0.08, xanchor="left", x=0),
-        )
-        fig_event.update_xaxes(title_text="Quarters from ENSO peak")
-        y_title = (
-            "Difference from value 2 quarters before ENSO peak"
-            if event_mode == "Raw data"
-            else "Estimated ENSO model contribution"
-        )
-        fig_event.update_yaxes(title_text=y_title)
-        st.plotly_chart(fig_event, width="stretch")
+            if event_mode == "Observed Responses":
+                event_title = (
+                    f"<b>{event_country}: Observed macroeconomic responses around the selected ENSO peaks</b>"
+                    "<br>All series are aligned so that the ENSO peak occurs at t=0. "
+                    "Values are shown relative to their levels two quarters before the peak (t=-2)."
+                )
+                y_title = "Difference from value 2 quarters before ENSO peak"
+            else:
+                event_title = (
+                    f"<b>{event_country}: Estimated ENSO effects around the selected ENSO peaks</b>"
+                    "<br>Effects represent the model-estimated contribution of ENSO relative to a "
+                    "counterfactual scenario in which ENSO is removed beginning two quarters before the peak."
+                )
+                y_title = "Estimated ENSO effects"
+
+            fig_event.update_layout(
+                title=event_title,
+                height=720,
+                margin=dict(l=30, r=20, t=100, b=80),
+                legend=dict(orientation="h", yanchor="top", y=-0.08, xanchor="left", x=0),
+            )
+            fig_event.update_xaxes(title_text="Quarters from ENSO peak")
+            fig_event.update_yaxes(title_text=y_title)
+            st.plotly_chart(fig_event, width="stretch")
+
+        render_event_mode_plot("Observed Responses")
+        render_event_mode_plot("Estimated ENSO Effects")
 
 
 with tab_structural_break:
@@ -1933,9 +2014,7 @@ with tab_structural_break:
                 * pd.to_numeric(llm_overlay_df["confidence"], errors="coerce").fillna(0)
             )
 
-    if pipeline_pack["path"]:
-        st.caption(f"Loaded pipeline bundle: `{pipeline_pack['path']}`")
-    else:
+    if not pipeline_pack["path"]:
         st.info(
             "No pipeline pickle found. Structural-break score panel will use Gemini-derived yearly scores. "
             "If you generate `gvar_pipeline_results.pkl`, richer quarterly scores will be shown automatically."
@@ -2143,53 +2222,6 @@ with tab_structural_break:
 
         st.plotly_chart(fig_sb, width="stretch")
 
-    st.subheader("1.1) Core EM coefficient trajectories from pickle")
-    if not offline_per_country:
-        st.info("No `offline_plot_data.base.per_country` in pipeline bundle.")
-    else:
-        for iso3 in sb_countries:
-            d = offline_per_country.get(iso3)
-            if not isinstance(d, dict):
-                continue
-            st.markdown(f"**{iso3_to_label(iso3)}**")
-            coeff_quarters = pd.to_datetime(d.get("coeff_quarters", []), errors="coerce")
-            diag_quarters = pd.to_datetime(d.get("diag_quarters", []), errors="coerce")
-            diag_coeff_series = d.get("diag_coeff_series", [])
-            enso_coeff_series = d.get("enso_coeff_series", [])
-
-            if len(coeff_quarters) > 0 and diag_coeff_series:
-                own_df = pd.DataFrame({"quarter": coeff_quarters})
-                for s in diag_coeff_series:
-                    vals = np.asarray(s.get("values", []), dtype=float)
-                    if len(vals) == len(coeff_quarters):
-                        own_df[s.get("label", "diag")] = vals
-                if own_df.shape[1] > 1:
-                    fig_own = px.line(
-                        own_df.melt(id_vars=["quarter"], var_name="series", value_name="value"),
-                        x="quarter",
-                        y="value",
-                        color="series",
-                        title=f"{iso3}: Diagonal own-variable lag coefficients",
-                    )
-                    st.plotly_chart(fig_own, width="stretch")
-
-            if len(coeff_quarters) > 0 and enso_coeff_series:
-                enso_df = pd.DataFrame({"quarter": coeff_quarters})
-                for s in enso_coeff_series:
-                    vals = np.asarray(s.get("values", []), dtype=float)
-                    if len(vals) == len(coeff_quarters):
-                        enso_df[s.get("label", "enso")] = vals
-                if enso_df.shape[1] > 1:
-                    fig_enso = px.line(
-                        enso_df.melt(id_vars=["quarter"], var_name="series", value_name="value"),
-                        x="quarter",
-                        y="value",
-                        color="series",
-                        title=f"{iso3}: ENSO coefficients",
-                    )
-                    st.plotly_chart(fig_enso, width="stretch")
-
-
     st.subheader("2) World Bank document information")
     if wb_top4_df.empty:
         st.warning("`structural_break/wb_top4.csv` not found or empty.")
@@ -2234,7 +2266,17 @@ with tab_structural_break:
                         st.markdown("**Abstract**")
                         st.write(str(row.get("abstract_text", "")))
 
-    st.subheader("3) Gemini outputs")
+    doc_title_col, doc_help_col = st.columns([0.97, 0.03])
+    doc_title_col.subheader("3) Documentary evidence and AI-assisted interpretation")
+    render_help_button(
+        doc_help_col,
+        "LLM-assisted document review. Relevant World Bank and related documents were analyzed "
+        "to identify potential explanations for candidate structural breaks. The table summarizes "
+        "the model’s assessment of whether documentary evidence supports a structural break in each "
+        "year, together with confidence scores and potential drivers. Confidence ranges from 1 "
+        "(weak evidence) to 5 (strong evidence).",
+        "documentary_evidence_help",
+    )
     if llm_overlay_df.empty:
         st.warning("No Gemini / LLM output table in pickle or under `structural_break/gemini output/`.")
     else:
@@ -2246,6 +2288,20 @@ with tab_structural_break:
                 gdf["break_type"] = gdf["break_type"].replace(
                     to_replace=[-99, "-99", "-99.0"],
                     value="--",
+                )
+                gdf["break_type"] = (
+                    gdf["break_type"]
+                    .astype(str)
+                    .str.replace("_", " ", regex=False)
+                    .str.title()
+                    .replace({"Nan": "--", "None": "--"})
+                )
+            if "break_supported" in gdf.columns:
+                supported_num = pd.to_numeric(gdf["break_supported"], errors="coerce")
+                gdf["break_supported"] = np.where(
+                    supported_num == 1,
+                    "Yes",
+                    np.where(supported_num == 0, "No", gdf["break_supported"]),
                 )
             st.markdown(f"**{iso3_to_label(iso3)}**")
             show_cols = [
@@ -2261,31 +2317,32 @@ with tab_structural_break:
                 ]
                 if c in gdf.columns
             ]
+            gdf_display = gdf[show_cols].rename(
+                columns={
+                    "country": "Country",
+                    "year": "Year",
+                    "status": "Processing Status",
+                    "break_supported": "Break Supported",
+                    "confidence": "Confidence (1-5)",
+                    "break_type": "Break Category",
+                    "summary": "Evidence Summary",
+                }
+            )
             st.dataframe(
-                gdf[show_cols],
+                gdf_display,
                 hide_index=True,
                 width="stretch",
             )
 
-    st.subheader("3.1) Raw impact vs model surprise overlap")
+    st.subheader("3.1) Observed impact vs model surprise overlap")
     st.caption(
-        "Raw impact uses percentile-ranked macro changes. Model surprise uses the existing "
+        "Observed impact uses percentile-ranked macro changes. Model surprise uses the existing "
         "pickle break diagnostics, preferring composite score and falling back to innovation score. "
         "Both are forward-averaged over at most two years."
     )
-    st.markdown(
-        """
-        <span style="display:inline-block;width:10px;height:10px;background:#FFD700;opacity:0.65;border:1px solid #bbb;margin-right:6px;"></span>
-        Information break year&nbsp;&nbsp;&nbsp;
-        <span style="display:inline-block;width:10px;height:10px;background:#d95f02;opacity:0.55;border:1px solid #bbb;margin-right:6px;"></span>
-        Top-5 raw impact year&nbsp;&nbsp;&nbsp;
-        <span style="display:inline-block;width:10px;height:10px;background:#1f77b4;opacity:0.55;border:1px solid #bbb;margin-right:6px;"></span>
-        Top-5 model surprise year
-        """,
-        unsafe_allow_html=True,
-    )
+    render_break_shading_legend()
     impact_horizon_q = st.slider(
-        "Forward averaging window (quarters)",
+        "Impact persistence window (quarters)",
         min_value=1,
         max_value=8,
         value=8,
@@ -2311,7 +2368,7 @@ with tab_structural_break:
 
         st.markdown(f"**{iso3_to_label(iso3)}**")
         if raw_yearly.empty and surprise_yearly.empty:
-            st.info("No raw-impact or model-surprise yearly data available.")
+            st.info("No observed-impact or model-surprise yearly data available.")
             continue
 
         fig_overlap, raw_top, surprise_top = plot_impact_overlap(
@@ -2326,17 +2383,27 @@ with tab_structural_break:
         years_to_show = sorted(set(raw_top) | set(surprise_top) | set(info_years))
         if years_to_show:
             summary_df = pd.DataFrame({"year": years_to_show})
-            summary_df["top5_raw_impact"] = summary_df["year"].isin(raw_top)
+            summary_df["top5_observed_impact"] = summary_df["year"].isin(raw_top)
             summary_df["top5_model_surprise"] = summary_df["year"].isin(surprise_top)
-            summary_df["information_break"] = summary_df["year"].isin(info_years)
+            summary_df["documented_break"] = summary_df["year"].isin(info_years)
             if not raw_yearly.empty:
-                summary_df["raw_impact_score"] = summary_df["year"].map(
+                summary_df["observed_impact_score"] = summary_df["year"].map(
                     raw_yearly.set_index("year")["raw_impact_score"]
                 )
             if not surprise_yearly.empty:
                 summary_df["model_surprise_score"] = summary_df["year"].map(
                     surprise_yearly.set_index("year")["model_surprise_score"]
                 )
+            summary_df = summary_df.rename(
+                columns={
+                    "year": "Year",
+                    "top5_observed_impact": "Top-5 Impact Year",
+                    "top5_model_surprise": "Top-5 Surprise Year",
+                    "documented_break": "Documented Break Year",
+                    "observed_impact_score": "Observed Impact Score",
+                    "model_surprise_score": "Model Surprise Score",
+                }
+            )
             st.dataframe(summary_df, hide_index=True, width="stretch")
 
     # st.subheader("3.2) ENSO coefficients after drop-year refit")
@@ -2400,10 +2467,13 @@ with tab_structural_break:
     #             )
     #             st.plotly_chart(fig_refit_enso, width="stretch")
 
-    st.subheader("4) Map by year (pre-generated HTML)")
+    st.subheader("4) Global structural-break map by year")
     st.caption(
-        "Color guide: Blue = Structural break; Green = Potential climate-related structural break."
+        "This map shows candidate structural-break locations for the selected year. Dot size reflects "
+        "the strength of the break signal. Colors distinguish general structural breaks from potential "
+        "climate-related structural breaks."
     )
+    render_map_color_legend()
     map_files = sorted(PREGENERATED_MAP_DIR.glob("map_*.html"))
     year_to_file = {}
     for f in map_files:
@@ -2431,6 +2501,127 @@ with tab_structural_break:
                 components.html(html_text, height=720, scrolling=True)
             except Exception as e:
                 st.error(f"Failed to load map HTML: {e}")
+
+with tab_guide:
+    st.header("Dashboard Guide")
+    st.subheader("Climate-Macroeconomic Risk Explorer")
+    st.markdown(
+        """
+        This dashboard explores how El Niño-Southern Oscillation (ENSO) conditions may influence
+        macroeconomic outcomes across twelve climate-sensitive countries. It combines historical
+        data, climate-risk indicators, dynamic forecasting models, event studies, and structural-break
+        analysis to help users understand both short-term risks and longer-term changes in
+        climate-economy relationships.
+        """
+    )
+
+    workflow_steps = [
+        (
+            "Climate Early-Warning Chain",
+            "Assess whether current ENSO conditions increase the likelihood of extreme heat or moisture "
+            "stress in the coming quarter.",
+        ),
+        (
+            "Scenario Impacts",
+            "Estimate how alternative ENSO scenarios could affect GDP growth, inflation, exchange rates, "
+            "and exports relative to a no-ENSO baseline.",
+        ),
+        (
+            "ENSO Peak Event Study",
+            "Compare current forecasts with historical ENSO episodes and examine how macroeconomic "
+            "indicators behaved around major El Niño events.",
+        ),
+        (
+            "Structural Break Analysis",
+            "Investigate whether relationships between climate and economic outcomes have changed over "
+            "time because of policy reforms, economic transitions, or external shocks.",
+        ),
+    ]
+
+    st.subheader("Recommended workflow")
+    for i, (step_title, step_text) in enumerate(workflow_steps, start=1):
+        st.markdown(f"**{i}. {step_title}**  \n{step_text}")
+
+    guide_sections = [
+        (
+            "Tab 1: Climate Early-Warning Chain",
+            "This tab links projected ENSO conditions to near-term physical climate risks. Historical "
+            "relationships between ENSO and local heat or moisture extremes are used to estimate the "
+            "probability that each country will experience climate stress during the next quarter.",
+            [
+                "Forecast ENSO conditions for the next quarter",
+                "Probability of extreme heat stress",
+                "Probability of extreme moisture stress",
+                "Country-level risk comparisons",
+                "Heat and moisture risk maps",
+            ],
+            "These probabilities provide an early-warning indicator of potential climate stress. They "
+            "do not directly estimate economic impacts. Instead, they help identify countries and "
+            "scenarios that may warrant further investigation in the Scenario Impacts tab.",
+            "Which countries face elevated climate risk under the current ENSO outlook?",
+        ),
+        (
+            "Tab 2: Scenario Impacts",
+            "This tab estimates the potential macroeconomic consequences of future ENSO conditions. "
+            "Forecasts are generated using the climate-macroeconomic model and are compared against "
+            "a counterfactual scenario in which future ENSO effects are absent.",
+            [
+                "Historical and projected ENSO conditions",
+                "Country forecasts under alternative ENSO scenarios",
+                "GDP growth, inflation, exchange-rate, and export projections",
+                "Cumulative impacts relative to a no-ENSO baseline",
+                "Geographic maps of projected impacts",
+                "Adaptive-policy experiments",
+            ],
+            "Impact estimates represent differences between the selected ENSO scenario and a no-ENSO "
+            "reference case. Positive or negative values indicate the estimated contribution of ENSO "
+            "to future economic outcomes.",
+            "How much could future ENSO conditions affect economic performance in each country?",
+        ),
+        (
+            "Tab 3: ENSO Peak Event Study",
+            "This tab examines historical macroeconomic responses around major ENSO events. Multiple "
+            "ENSO peaks are aligned in time so that users can compare economic trajectories before "
+            "and after past climate shocks.",
+            [
+                "Historical ENSO peaks",
+                "Event-aligned GDP, inflation, exchange-rate, and export responses",
+                "Comparisons across multiple ENSO episodes",
+                "Optional model-estimated ENSO contributions",
+            ],
+            "The event study provides historical context rather than forecasts. It helps users understand "
+            "how countries responded during previous ENSO episodes and whether current projections are "
+            "consistent with historical experience.",
+            "What happened during past major ENSO events?",
+        ),
+        (
+            "Tab 4: Structural Break Analysis",
+            "This tab evaluates whether climate-economy relationships have changed over time. Structural "
+            "breaks may arise from policy reforms, economic transitions, technological change, trade "
+            "shifts, financial crises, or other major events.",
+            [
+                "Time-varying Kalman filter coefficients",
+                "Structural-break scores",
+                "Estimated ENSO sensitivities through time",
+                "Supporting World Bank documents",
+                "Gemini-generated summaries of potential break drivers",
+            ],
+            "Changes in model coefficients may indicate that historical climate responses are no longer "
+            "stable. Structural-break information can help users identify periods when climate-economic "
+            "relationships strengthened, weakened, or changed direction.",
+            "Can historical climate-economy relationships be assumed to remain valid today?",
+        ),
+    ]
+
+    st.subheader("Tab details")
+    for i, (title, purpose, shows, interpretation, question) in enumerate(guide_sections):
+        with st.expander(title, expanded=(i == 0)):
+            st.markdown(f"**Purpose**  \n{purpose}")
+            st.markdown("**What this tab shows**")
+            for item in shows:
+                st.markdown(f"- {item}")
+            st.markdown(f"**Interpretation**  \n{interpretation}")
+            st.markdown(f"**Key question**  \n{question}")
 
 with tab_feedback:
     st.header("Feedback")
