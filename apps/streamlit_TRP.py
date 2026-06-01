@@ -75,6 +75,88 @@ HELP_TEXT = {
     "map_year": "Pre-generated structural-break map year to display.",
 }
 
+GUIDE_SECTIONS = [
+    (
+        "Climate Early-Warning Chain",
+        "This tab links projected ENSO conditions to near-term physical climate risks. Historical "
+        "relationships between ENSO and local heat or moisture extremes are used to estimate the "
+        "probability that each country will experience climate stress during the next quarter.",
+        [
+            "Forecast ENSO conditions for the next quarter",
+            "Probability of extreme heat stress",
+            "Probability of extreme moisture stress",
+            "Country-level risk comparisons",
+            "Heat and moisture risk maps",
+        ],
+        "These probabilities provide an early-warning indicator of potential climate stress. They "
+        "do not directly estimate economic impacts. Instead, they help identify countries and "
+        "scenarios that may warrant further investigation in the Scenario Impacts tab.",
+        "Which countries face elevated climate risk under the current ENSO outlook?",
+    ),
+    (
+        "Scenario Impacts",
+        "This tab estimates the potential macroeconomic consequences of future ENSO conditions. "
+        "Forecasts are generated using the climate-macroeconomic model and are compared against "
+        "a counterfactual scenario in which future ENSO effects are absent.",
+        [
+            "Historical and projected ENSO conditions",
+            "Country forecasts under alternative ENSO scenarios",
+            "GDP growth, inflation, exchange-rate, and export projections",
+            "Cumulative impacts relative to a no-ENSO baseline",
+            "Geographic maps of projected impacts",
+            "Adaptive-policy experiments",
+        ],
+        "Impact estimates represent differences between the selected ENSO scenario and a no-ENSO "
+        "reference case. Positive or negative values indicate the estimated contribution of ENSO "
+        "to future economic outcomes.",
+        "How much could future ENSO conditions affect economic performance in each country?",
+    ),
+    (
+        "ENSO Peak Event Study",
+        "This tab examines historical macroeconomic responses around major ENSO events. Multiple "
+        "ENSO peaks are aligned in time so that users can compare economic trajectories before "
+        "and after past climate shocks.",
+        [
+            "Historical ENSO peaks",
+            "Event-aligned GDP, inflation, exchange-rate, and export responses",
+            "Comparisons across multiple ENSO episodes",
+            "Optional model-estimated ENSO contributions",
+        ],
+        "The event study provides historical context rather than forecasts. It helps users understand "
+        "how countries responded during previous ENSO episodes and whether current projections are "
+        "consistent with historical experience.",
+        "What happened during past major ENSO events?",
+    ),
+    (
+        "Structural Break Analysis",
+        "This tab evaluates whether climate-economy relationships have changed over time. Structural "
+        "breaks may arise from policy reforms, economic transitions, technological change, trade "
+        "shifts, financial crises, or other major events.",
+        [
+            "Time-varying Kalman filter coefficients",
+            "Structural-break scores",
+            "Estimated ENSO sensitivities through time",
+            "Supporting World Bank documents",
+            "Gemini-generated summaries of potential break drivers",
+        ],
+        "Changes in model coefficients may indicate that historical climate responses are no longer "
+        "stable. Structural-break information can help users identify periods when climate-economic "
+        "relationships strengthened, weakened, or changed direction.",
+        "Can historical climate-economy relationships be assumed to remain valid today?",
+    ),
+]
+
+
+def render_tab_description(section_index):
+    _, purpose, shows, interpretation, question = GUIDE_SECTIONS[section_index]
+    with st.expander("Description", expanded=False):
+        st.markdown(f"**Purpose**  \n{purpose}")
+        st.markdown("**What this tab shows**")
+        for item in shows:
+            st.markdown(f"- {item}")
+        st.markdown(f"**Interpretation**  \n{interpretation}")
+        st.markdown(f"**Key question**  \n{question}")
+
 def get_country_regime_ts(panel, country):
     df = panel[panel["country"] == country].copy()
     df["year"] = df["quarter"].dt.year
@@ -570,7 +652,7 @@ def plot_core_forecast(plot_df, response_var):
                 )
             )
     fig.update_layout(
-        title=f"{response_var}: forecast path (mean with +/- 1 SD ENSO + beta RW band)",
+        title=f"{response_var}: mean forecast with one SD band for ENSO and modeling uncertainties",
         xaxis_title="Quarter",
         yaxis_title=response_var,
         legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="left", x=0),
@@ -677,7 +759,7 @@ def plot_selected_country_forecast(plot_df, response_var, country_label):
             )
 
     fig.update_layout(
-        title=f"{country_label}: {response_var} ENSO scenario calibration: forecasted ENSO vs ENSO = 0 baseline",
+        title=f"{country_label}: {response_var} based on forecasted ENSO and future ENSO = 0",
         xaxis_title="Quarter",
         yaxis_title=response_var,
         legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="left", x=0),
@@ -816,8 +898,8 @@ def plot_metric_impact_map(summary_df, response_var, countries=None):
             "cumulative_mean": ":.2f",
             "cumulative_max": ":.2f",
         },
-        labels={"cumulative_mean": "Mean cumulative impact"},
-        title=f"{response_var}: cumulative impact vs no ENSO baseline",
+        labels={"cumulative_mean": "Mean cumulative difference"},
+        title=f"{response_var}: Cumulative mean impact vs no ENSO",
     )
     fig.update_traces(marker_line_color="#4D4D4D", marker_line_width=0.8)
     fig.update_geos(
@@ -831,7 +913,7 @@ def plot_metric_impact_map(summary_df, response_var, countries=None):
     fig.update_layout(
         height=520,
         margin={"r": 0, "t": 50, "l": 0, "b": 0},
-        coloraxis_colorbar=dict(title="Mean cumulative impact"),
+        coloraxis_colorbar=dict(title="Mean cumulative difference"),
     )
     return fig
 
@@ -1331,25 +1413,25 @@ with control_cols[2]:
     st.caption("Dashboard uses the offline EM/KF pickle and precomputed Dash_Output charts; no online KF fitting is run.")
 
 # ----- STREAMLIT TABS
-tab_climate_risk, tab_scenario, tab_event_study, tab_structural_break, tab_guide, tab_feedback = st.tabs(
+tab_climate_risk, tab_scenario, tab_event_study, tab_structural_break, tab_feedback = st.tabs(
     [
         "Climate Early-Warning Chain",
         "Scenario Impacts",
         "ENSO Peak Event Study",
         "Structural Break Analysis",
-        "Dashboard Guide",
         "Feedback",
     ]
 )
 
 with tab_climate_risk:
     st.header("Climate Early-Warning Chain")
+    render_tab_description(0)
 
     st.markdown(
         """
-        This panel links **ENSO conditions today** to the **probability of localized heat
-        and moisture stress next quarter**. Macroeconomic impacts are evaluated separately
-        in the offline scenario output.
+        This panel links ENSO conditions today to the probability of localized heat
+        and moisture (drought) stress next quarter. Macroeconomic impacts are evaluated
+        separately in the Scenario Impacts tab.
         """
     )
 
@@ -1409,7 +1491,7 @@ with tab_climate_risk:
         )
     with c3:
         st.metric(
-            "Probability of moisture stress next quarter",
+            "Baseline probability of moisture stress next quarter",
             f"{baseline:.0%}",
             help=HELP_TEXT["baseline_probability"],
         )
@@ -1425,12 +1507,10 @@ with tab_climate_risk:
 
     st.caption(
         "Probabilities are estimated from historical ENSO → physical stress relationships "
-        "and provide context for scenario selection. Macroeconomic impacts are evaluated "
-        "separately via scenario analysis."
+        "and provide context for scenario selection."
     )
 
     st.subheader("Early-warning comparison across countries")
-    st.write("#### Country Risk Summary")
     risk_table = prob_rows_df.sort_values("Heat probability (%)", ascending=False)
     st.dataframe(
         risk_table,
@@ -1504,13 +1584,13 @@ with tab_climate_risk:
         st.plotly_chart(fig, width="stretch", config={"scrollZoom": False})
 
     choropleth_map(
-        "Probability of extreme heat next quarter (conditional on ENSO)",
+        "Probability of extreme heat next quarter (conditioned on user-selected ENSO forecast)",
         "Probability of extreme heat",
         "Heat probability (%)",
         "Probability of extreme heat",
     )
     choropleth_map(
-        "Probability of extreme moisture next quarter (conditional on ENSO)",
+        "Probability of extreme moisture next quarter (conditioned on user-selected ENSO forecast)",
         "Probability of extreme moisture",
         "Moisture probability (%)",
         "Probability of extreme moisture",
@@ -1519,11 +1599,10 @@ with tab_climate_risk:
 
 with tab_scenario:
     st.header("Scenario Impacts")
+    render_tab_description(1)
 
     forecast_pack = load_forecast_bundle(forecast_pickle_state())
-    if forecast_pack["path"]:
-        st.caption(f"Loaded forecast pickle: `{forecast_pack['path']}`")
-    else:
+    if not forecast_pack["path"]:
         st.warning(
             "No forecast pickle found. Run `analysis/Dash_Output/gvar_kf_forecast.py` first; "
             "the dashboard will then draw directly from `Dash_Input/gvar_forecast_results.pkl`."
@@ -1556,7 +1635,7 @@ with tab_scenario:
             st.plotly_chart(fig_selected, width="stretch")
 
         if not q_summary.empty:
-            st.subheader("Forecast impact ranges vs no ENSO baseline")
+            st.subheader("Impacts based on forecasted ENSO (min, mean, max) and future ENSO = 0")
             scenario_start = selected_df.loc[
                 selected_df["period_type"].eq("Scenario forecast"), "quarter"
             ].min()
@@ -1579,7 +1658,7 @@ with tab_scenario:
                 if not c_cum.empty:
                     r = c_cum.iloc[0]
                     st.metric(
-                        f"{response_var} cumulative change vs no ENSO impact",
+                        f"{response_var}: Cumulative mean impact vs no ENSO",
                         f"{r['cumulative_mean']:+.2f} p.p.",
                         delta=f"{r['cumulative_min']:+.2f} to {r['cumulative_max']:+.2f} p.p.",
                         help="Cumulative forecast difference between the ENSO scenario and a no-ENSO-impact baseline, shown in percentage points.",
@@ -1590,12 +1669,12 @@ with tab_scenario:
                     columns={
                         "quarter": "Quarter",
                         "period_type": "Period type",
-                        "value_min": f"{response_var} min",
-                        "value_mean": f"{response_var} mean",
-                        "value_max": f"{response_var} max",
-                        "impact_min": "Impact min vs no ENSO",
-                        "impact_mean": "Impact mean vs no ENSO",
-                        "impact_max": "Impact max vs no ENSO",
+                        "value_min": f"{response_var} (min ENSO)",
+                        "value_mean": f"{response_var} (mean ENSO)",
+                        "value_max": f"{response_var} (max ENSO)",
+                        "impact_min": f"{response_var} (min vs no ENSO)",
+                        "impact_mean": f"{response_var} (mean vs no ENSO)",
+                        "impact_max": f"{response_var} (max vs no ENSO)",
                     }
                 )
                 st.dataframe(
@@ -1603,12 +1682,12 @@ with tab_scenario:
                         [
                             "Quarter",
                             "Period type",
-                            f"{response_var} min",
-                            f"{response_var} mean",
-                            f"{response_var} max",
-                            "Impact min vs no ENSO",
-                            "Impact mean vs no ENSO",
-                            "Impact max vs no ENSO",
+                            f"{response_var} (min ENSO)",
+                            f"{response_var} (mean ENSO)",
+                            f"{response_var} (max ENSO)",
+                            f"{response_var} (min vs no ENSO)",
+                            f"{response_var} (mean vs no ENSO)",
+                            f"{response_var} (max vs no ENSO)",
                         ]
                     ],
                     hide_index=True,
@@ -1672,6 +1751,7 @@ with tab_scenario:
 
 with tab_event_study:
     st.header("ENSO Peak Event Study")
+    render_tab_description(2)
     st.caption(
         "The ENSO peak is aligned at t=0. Raw data mode subtracts the value two quarters "
         "before the peak. Model contribution mode shows the estimated ENSO counterfactual "
@@ -1795,6 +1875,7 @@ with tab_event_study:
 
 with tab_structural_break:
     st.header("Structural Break")
+    render_tab_description(3)
     st.markdown(
         "A set of analyses generated from Kalman filter / EM outputs, "
         "with optional LLM (Gemini) structural-break overlays."
@@ -2350,127 +2431,6 @@ with tab_structural_break:
                 components.html(html_text, height=720, scrolling=True)
             except Exception as e:
                 st.error(f"Failed to load map HTML: {e}")
-
-with tab_guide:
-    st.header("Dashboard Guide")
-    st.subheader("Climate-Macroeconomic Risk Explorer")
-    st.markdown(
-        """
-        This dashboard explores how El Niño-Southern Oscillation (ENSO) conditions may influence
-        macroeconomic outcomes across twelve climate-sensitive countries. It combines historical
-        data, climate-risk indicators, dynamic forecasting models, event studies, and structural-break
-        analysis to help users understand both short-term risks and longer-term changes in
-        climate-economy relationships.
-        """
-    )
-
-    workflow_steps = [
-        (
-            "Climate Early-Warning Chain",
-            "Assess whether current ENSO conditions increase the likelihood of extreme heat or moisture "
-            "stress in the coming quarter.",
-        ),
-        (
-            "Scenario Impacts",
-            "Estimate how alternative ENSO scenarios could affect GDP growth, inflation, exchange rates, "
-            "and exports relative to a no-ENSO baseline.",
-        ),
-        (
-            "ENSO Peak Event Study",
-            "Compare current forecasts with historical ENSO episodes and examine how macroeconomic "
-            "indicators behaved around major El Niño events.",
-        ),
-        (
-            "Structural Break Analysis",
-            "Investigate whether relationships between climate and economic outcomes have changed over "
-            "time because of policy reforms, economic transitions, or external shocks.",
-        ),
-    ]
-
-    st.subheader("Recommended workflow")
-    for i, (step_title, step_text) in enumerate(workflow_steps, start=1):
-        st.markdown(f"**{i}. {step_title}**  \n{step_text}")
-
-    guide_sections = [
-        (
-            "Tab 1: Climate Early-Warning Chain",
-            "This tab links projected ENSO conditions to near-term physical climate risks. Historical "
-            "relationships between ENSO and local heat or moisture extremes are used to estimate the "
-            "probability that each country will experience climate stress during the next quarter.",
-            [
-                "Forecast ENSO conditions for the next quarter",
-                "Probability of extreme heat stress",
-                "Probability of extreme moisture stress",
-                "Country-level risk comparisons",
-                "Heat and moisture risk maps",
-            ],
-            "These probabilities provide an early-warning indicator of potential climate stress. They "
-            "do not directly estimate economic impacts. Instead, they help identify countries and "
-            "scenarios that may warrant further investigation in the Scenario Impacts tab.",
-            "Which countries face elevated climate risk under the current ENSO outlook?",
-        ),
-        (
-            "Tab 2: Scenario Impacts",
-            "This tab estimates the potential macroeconomic consequences of future ENSO conditions. "
-            "Forecasts are generated using the climate-macroeconomic model and are compared against "
-            "a counterfactual scenario in which future ENSO effects are absent.",
-            [
-                "Historical and projected ENSO conditions",
-                "Country forecasts under alternative ENSO scenarios",
-                "GDP growth, inflation, exchange-rate, and export projections",
-                "Cumulative impacts relative to a no-ENSO baseline",
-                "Geographic maps of projected impacts",
-                "Adaptive-policy experiments",
-            ],
-            "Impact estimates represent differences between the selected ENSO scenario and a no-ENSO "
-            "reference case. Positive or negative values indicate the estimated contribution of ENSO "
-            "to future economic outcomes.",
-            "How much could future ENSO conditions affect economic performance in each country?",
-        ),
-        (
-            "Tab 3: ENSO Peak Event Study",
-            "This tab examines historical macroeconomic responses around major ENSO events. Multiple "
-            "ENSO peaks are aligned in time so that users can compare economic trajectories before "
-            "and after past climate shocks.",
-            [
-                "Historical ENSO peaks",
-                "Event-aligned GDP, inflation, exchange-rate, and export responses",
-                "Comparisons across multiple ENSO episodes",
-                "Optional model-estimated ENSO contributions",
-            ],
-            "The event study provides historical context rather than forecasts. It helps users understand "
-            "how countries responded during previous ENSO episodes and whether current projections are "
-            "consistent with historical experience.",
-            "What happened during past major ENSO events?",
-        ),
-        (
-            "Tab 4: Structural Break Analysis",
-            "This tab evaluates whether climate-economy relationships have changed over time. Structural "
-            "breaks may arise from policy reforms, economic transitions, technological change, trade "
-            "shifts, financial crises, or other major events.",
-            [
-                "Time-varying Kalman filter coefficients",
-                "Structural-break scores",
-                "Estimated ENSO sensitivities through time",
-                "Supporting World Bank documents",
-                "Gemini-generated summaries of potential break drivers",
-            ],
-            "Changes in model coefficients may indicate that historical climate responses are no longer "
-            "stable. Structural-break information can help users identify periods when climate-economic "
-            "relationships strengthened, weakened, or changed direction.",
-            "Can historical climate-economy relationships be assumed to remain valid today?",
-        ),
-    ]
-
-    st.subheader("Tab details")
-    for i, (title, purpose, shows, interpretation, question) in enumerate(guide_sections):
-        with st.expander(title, expanded=(i == 0)):
-            st.markdown(f"**Purpose**  \n{purpose}")
-            st.markdown("**What this tab shows**")
-            for item in shows:
-                st.markdown(f"- {item}")
-            st.markdown(f"**Interpretation**  \n{interpretation}")
-            st.markdown(f"**Key question**  \n{question}")
 
 with tab_feedback:
     st.header("Feedback")

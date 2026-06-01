@@ -2,10 +2,10 @@
 Multi-step KF forecast after EM estimation (GVAR_LLM_pickle pipeline).
 
 Uses the final EM/KF state and user-supplied exogenous forecasts (ENSO, COMMODITY).
-Forecast bands are generated offline by Monte Carlo draws from the last filtered
-parameter covariance P. Each simulated beta is held fixed across the future path
-(Q = R = 0 in the forecast simulation), so uncertainty enters through beta and
-the nonlinear recursion of lagged predicted y.
+Forecast bands are generated offline by Monte Carlo beta random walks using Q
+from the Kalman filter. The last filtered beta is treated as known (P = 0) and
+observation noise is excluded (R = 0), so uncertainty enters through future beta
+variation and the nonlinear recursion of lagged predicted y.
 """
 
 from __future__ import annotations

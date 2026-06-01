@@ -720,16 +720,18 @@ def em_m_step_update(
     valid_mask: np.ndarray,
     theta_smooth: np.ndarray,
     P_smooth: np.ndarray,
+    J_hist: np.ndarray,
     Q_old: np.ndarray,
     R_old: np.ndarray,
-    em_damping: float = 0.7,
+    em_damping: float = 0.0,
     eps: float = 1e-8,
 ):
     """
     Update Q and R using smoother outputs.
-    Practical EM moments used here:
+    EM moments used here:
       R <- sample mean of E[(y-Hx)(y-Hx)' + HPH']
-      Q <- sample mean of E[(x_t-x_{t-1})(x_t-x_{t-1})' + P_t + P_{t-1}] (approx.)
+      Q <- sample mean of E[(x_t-x_{t-1})(x_t-x_{t-1})']
+           using the RTS lag-one smoothed covariance.
     """
     n, p = theta_smooth.shape
     mY = Y.shape[1]
@@ -752,9 +754,9 @@ def em_m_step_update(
     else:
         R_new = R_old.copy()
 
-    # ===== update Q (diagonal, stable version) =====
+    # update Q
     valid_idx = np.where(valid_mask)[0]
-    Q_acc_diag = np.zeros(p)
+    Q_acc = np.zeros((p, p))
     cntQ = 0
 
     for k in range(1, len(valid_idx)):
@@ -764,48 +766,24 @@ def em_m_step_update(
         x_t = theta_smooth[t]
         x_prev = theta_smooth[t0]
 
-        d = x_t - x_prev
-
-        # More stable approximation to avoid systematic Q overestimation
-        q_diag_t = d**2 + 0.5 * (np.diag(P_smooth[t]) + np.diag(P_smooth[t0]))
-
-        Q_acc_diag += q_diag_t
+        d = (x_t - x_prev).reshape(-1, 1)
+        P_t_t0 = P_smooth[t] @ J_hist[t0].T
+        Q_t = d @ d.T + P_smooth[t] + P_smooth[t0] - P_t_t0 - P_t_t0.T
+        Q_acc += Q_t
         cntQ += 1
 
-    # Average
     if cntQ > 0:
-        Q_new_diag = Q_acc_diag / cntQ
+        Q_new = Q_acc / cntQ
     else:
-        Q_new_diag = np.diag(Q_old)
+        Q_new = Q_old.copy()
 
-    # ===== damping (in diagonal space) =====
-    Q_old_diag = np.diag(Q_old)
-    Q_diag = em_damping * Q_old_diag + (1.0 - em_damping) * Q_new_diag
-
-    # ===== anti-explosion guard (dimension-wise clipping) =====
-    Q_diag = np.minimum(Q_diag, 10.0 * Q_old_diag)
-
-    # ===== shrinkage (critical to prevent unstable jumps) =====
-    Q_diag *= 0.5
-
-    # ===== enforce positive definiteness =====
-    Q_diag = np.maximum(Q_diag, eps)
-
-    # ===== restore diagonal matrix =====
-    Q = np.diag(Q_diag)
+    Q = em_damping * Q_old + (1.0 - em_damping) * Q_new
+    Q = 0.5 * (Q + Q.T) + eps * np.eye(p)
 
     # damping + stabilize
     R = em_damping * R_old + (1.0 - em_damping) * R_new
 
     R = 0.5 * (R + R.T) + eps * np.eye(mY)
-
-    # Prevent excessive inflation
-    trR_old = max(np.trace(R_old), eps)
-    trQ_old = max(np.trace(Q_old), eps)
-    if np.trace(R) > 10.0 * trR_old:
-        R *= (10.0 * trR_old / max(np.trace(R), eps))
-    if np.trace(Q) > 10.0 * trQ_old:
-        Q *= (10.0 * trQ_old / max(np.trace(Q), eps))
 
     return Q, R
 
@@ -819,7 +797,7 @@ def run_kf_em(
     ridge: float = 1e-6,
     max_em_iter: int = 10,
     tol: float = 1e-4,
-    em_damping: float = 0.7,
+    em_damping: float = 0.0,
     eps: float = 1e-8,
     verbose: bool = True,
 ):
@@ -857,6 +835,7 @@ def run_kf_em(
             valid_mask=valid_mask,
             theta_smooth=theta_smooth,
             P_smooth=P_smooth,
+            J_hist=J_hist,
             Q_old=Q,
             R_old=R,
             em_damping=em_damping,
@@ -2504,7 +2483,7 @@ def build_em_break_score_panel(
 # ============================================================
 # LLM integration: break-score overlay + summary charts + time-slice maps
 # ============================================================
-ENABLE_LLM_INTEGRATION = True
+ENABLE_LLM_INTEGRATION = False
 LLM_RESULTS_CSV = "merged_clean_dataset.csv"  # replace with your prepared CSV
 SHOW_LLM_BREAK_OVERLAY = True
 LLM_OVERLAY_FIG_PATH = "gvar_breakscore_llm_overlay.png"
@@ -2871,4 +2850,3 @@ if ENABLE_LLM_REFIT_PDF:
         print(f"[JPG] Saved breakscore figures to: {BREAKSCORE_JPG_DIR}")
     else:
         raise ValueError("BREAKSCORE_OUTPUT_MODE must be one of: 'pdf', 'plot', 'jpg'")
-
