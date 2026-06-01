@@ -117,9 +117,8 @@ def _all_forecast_target_quarters() -> list[pd.Timestamp]:
 Z_CI = 1.96
 FORECAST_MC_SIMULATIONS = 500
 FORECAST_MC_SEED = 20260531
-# A two-sided 95% Monte Carlo interval uses the 2.5th and 97.5th percentiles.
-FORECAST_MC_PERCENTILES = (2.5, 97.5)
-FORECAST_MC_INTERVAL_LABEL = "95%"
+FORECAST_MC_BAND_METHOD = "mean_plus_minus_one_std"
+FORECAST_MC_INTERVAL_LABEL = "+/- 1 standard deviation"
 # Legacy single-scenario output dirs (mean); multi-scenario uses _scenario_output_dirs().
 OUTPUT_DIR = Path("Dash_Output/forecast")
 OUTPUT_DIR_KF_TRACK = Path("Dash_Output/forecast_kf_track")
@@ -528,9 +527,9 @@ def _roll_kf_forecast(
             lags=lags,
         )
 
-    lo_p, hi_p = FORECAST_MC_PERCENTILES
-    y_lo = np.nanpercentile(paths, lo_p, axis=0)
-    y_hi = np.nanpercentile(paths, hi_p, axis=0)
+    sim_sd = np.nanstd(paths, axis=0, ddof=1)
+    y_lo = y_hat - sim_sd
+    y_hi = y_hat + sim_sd
     return y_hat, y_lo, y_hi
 
 
@@ -751,7 +750,7 @@ def forecast_country_from_em(
             "method": "beta_p_monte_carlo",
             "simulations": FORECAST_MC_SIMULATIONS,
             "seed": mc_seed,
-            "percentiles": FORECAST_MC_PERCENTILES,
+            "band_method": FORECAST_MC_BAND_METHOD,
             "interval": FORECAST_MC_INTERVAL_LABEL,
             "antithetic_draws": True,
             "uses_Q": False,
@@ -812,7 +811,7 @@ def run_forecast_for_countries(
             "forecast_uncertainty_method": "beta_p_monte_carlo",
             "forecast_mc_simulations": FORECAST_MC_SIMULATIONS,
             "forecast_mc_seed": FORECAST_MC_SEED,
-            "forecast_mc_percentiles": FORECAST_MC_PERCENTILES,
+            "forecast_mc_band_method": FORECAST_MC_BAND_METHOD,
             "forecast_mc_interval": FORECAST_MC_INTERVAL_LABEL,
             "forecast_mc_antithetic_draws": True,
             "forecast_ci_uses_Q": False,
@@ -870,7 +869,7 @@ def _empty_scenario_bundle(path: str, scenario: str, exo_fc: pd.DataFrame) -> di
             "forecast_uncertainty_method": "beta_p_monte_carlo",
             "forecast_mc_simulations": FORECAST_MC_SIMULATIONS,
             "forecast_mc_seed": FORECAST_MC_SEED,
-            "forecast_mc_percentiles": FORECAST_MC_PERCENTILES,
+            "forecast_mc_band_method": FORECAST_MC_BAND_METHOD,
             "forecast_mc_interval": FORECAST_MC_INTERVAL_LABEL,
             "forecast_mc_antithetic_draws": True,
             "forecast_ci_uses_Q": False,

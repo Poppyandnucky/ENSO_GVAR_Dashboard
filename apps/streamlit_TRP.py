@@ -570,7 +570,7 @@ def plot_core_forecast(plot_df, response_var):
                 )
             )
     fig.update_layout(
-        title=f"{response_var}: forecast path (mean with 95% ENSO + beta MC band)",
+        title=f"{response_var}: forecast path (mean with +/- 1 SD ENSO + beta MC band)",
         xaxis_title="Quarter",
         yaxis_title=response_var,
         legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="left", x=0),
@@ -677,7 +677,7 @@ def plot_selected_country_forecast(plot_df, response_var, country_label):
             )
 
     fig.update_layout(
-        title=f"{country_label}: {response_var} path (95% ENSO + beta MC band)",
+        title=f"{country_label}: {response_var} path (+/- 1 SD ENSO + beta MC band)",
         xaxis_title="Quarter",
         yaxis_title=response_var,
         legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="left", x=0),
@@ -2458,3 +2458,14 @@ with tab_guide:
                 st.markdown(f"- {item}")
             st.markdown(f"**Interpretation**  \n{interpretation}")
             st.markdown(f"**Key question**  \n{question}")
+
+    with st.expander("Feedback", expanded=False):
+        st.markdown(
+            "Use this form to report bugs, confusing results, interpretation issues, "
+            "or suggestions for improving the dashboard."
+        )
+        components.iframe(
+            "https://docs.google.com/forms/d/e/1FAIpQLSdIKiK6GnJ902abmwt7-OO5k2OAOcQ6Dqnn_fkj1S_gZREA1g/viewform?embedded=true",
+            height=775,
+            scrolling=True,
+        )
