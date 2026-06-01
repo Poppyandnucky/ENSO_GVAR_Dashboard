@@ -1183,13 +1183,13 @@ def build_enso_peak_event_study(
     rows = []
     for peak in peaks.itertuples(index=False):
         peak_period = peak.quarter.to_period("Q")
-        if peak_period not in df.index:
+        origin_period = peak_period - 2
+        if peak_period not in df.index or origin_period not in df.index:
             continue
-        base = df.loc[peak_period, vars_use]
+        base = df.loc[origin_period, vars_use]
         if isinstance(base, pd.DataFrame):
             base = base.iloc[0]
-        rel_start = -2 if value_mode == "ENSO model contribution" else -4
-        for rel_q in range(rel_start, 13):
+        for rel_q in range(-4, 13):
             q = peak_period + rel_q
             if q not in df.index:
                 continue
@@ -1200,12 +1200,16 @@ def build_enso_peak_event_study(
                 y = pd.to_numeric(row[v], errors="coerce")
                 y0 = pd.to_numeric(base[v], errors="coerce")
                 if pd.notna(y) and pd.notna(y0):
-                    value = 0.0 if value_mode == "ENSO model contribution" and rel_q <= 0 else y - y0
+                    if value_mode == "ENSO model contribution":
+                        value = 0.0 if q <= origin_period else y
+                    else:
+                        value = y - y0
                     rows.append(
                         {
                             "variable": v,
                             "event_label": format_quarter_label(peak.quarter.to_period("Q")),
                             "peak_quarter": peak.quarter,
+                            "origin_quarter": origin_period.to_timestamp(),
                             "enso_value": peak.ENSO,
                             "relative_quarter": rel_q,
                             "value": value,
@@ -1668,9 +1672,9 @@ with tab_scenario:
 with tab_event_study:
     st.header("ENSO Peak Event Study")
     st.caption(
-        "Raw data mode shows y(t+k) minus the value in the selected ENSO peak quarter, "
-        "with the peak aligned at t=0. Model contribution mode is a separate estimated "
-        "ENSO component and should not be read as the raw event-study difference."
+        "The ENSO peak is aligned at t=0. Raw data mode subtracts the value two quarters "
+        "before the peak. Model contribution mode shows the estimated ENSO counterfactual "
+        "difference, also anchored two quarters before the peak."
     )
 
     event_cols = st.columns([1, 1, 3])
@@ -1780,7 +1784,7 @@ with tab_event_study:
         )
         fig_event.update_xaxes(title_text="Quarters from ENSO peak")
         y_title = (
-            "Difference from value during ENSO peak"
+            "Difference from value 2 quarters before ENSO peak"
             if event_mode == "Raw data"
             else "Estimated ENSO model contribution"
         )
