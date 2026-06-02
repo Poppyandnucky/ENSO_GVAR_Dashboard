@@ -2352,7 +2352,8 @@ with tab_structural_break:
                         st.write(str(row.get("abstract_text", "")))
 
     doc_title_col, doc_help_col = st.columns([0.97, 0.03])
-    doc_title_col.subheader("3) Documentary evidence and AI-assisted interpretation")
+    with doc_title_col:
+        st_subheader("3) Documentary evidence and AI-assisted interpretation")
     render_help_button(
         doc_help_col,
         "LLM-assisted document review. Relevant World Bank and related documents were analyzed "
