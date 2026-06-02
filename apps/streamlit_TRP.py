@@ -2351,18 +2351,7 @@ with tab_structural_break:
                         st.markdown("**Abstract**")
                         st.write(str(row.get("abstract_text", "")))
 
-    doc_title_col, doc_help_col = st.columns([0.97, 0.03])
-    with doc_title_col:
-        st_subheader("3) Documentary evidence and AI-assisted interpretation")
-    render_help_button(
-        doc_help_col,
-        "LLM-assisted document review. Relevant World Bank and related documents were analyzed "
-        "to identify potential explanations for candidate structural breaks. The table summarizes "
-        "the model’s assessment of whether documentary evidence supports a structural break in each "
-        "year, together with confidence scores and potential drivers. Confidence ranges from 1 "
-        "(weak evidence) to 5 (strong evidence).",
-        "documentary_evidence_help",
-    )
+    st_subheader("3) Documentary evidence and AI-assisted interpretation")
     if llm_overlay_df.empty:
         st.warning("No Gemini / LLM output table in pickle or under `structural_break/gemini output/`.")
     else:
