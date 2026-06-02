@@ -222,7 +222,11 @@ def country_to_iso3(value):
 
 
 def iso3_to_label(iso3):
-    return f"{iso3} - {ISO_TO_NAME.get(iso3, iso3)}"
+    return ISO_TO_NAME.get(iso3, iso3)
+
+
+def response_table_label(response_var):
+    return {"GDP_YoY": "GDP Growth"}.get(response_var, response_var)
 
 
 def _filter_dashboard_countries(values):
@@ -602,7 +606,7 @@ def plot_core_forecast(plot_df, response_var):
                     x=hist["quarter"],
                     y=hist["value"],
                     mode="lines+markers",
-                    name=f"{c} actual",
+                    name=f"{iso3_to_label(c)} actual",
                     line=dict(color=color, width=2),
                     marker=dict(color=color),
                     hovertemplate=f"{c} actual<br>%{{x|%Y-Q%q}}<br>{response_var}: %{{y:.2f}}<extra></extra>",
@@ -650,10 +654,10 @@ def plot_core_forecast(plot_df, response_var):
                     x=piv.index,
                     y=mean,
                     mode="lines+markers",
-                    name=f"{c} forecast",
+                    name=f"{iso3_to_label(c)} forecast",
                     line=dict(color=color, width=2),
                     marker=dict(color=color),
-                    hovertemplate=f"{c} forecast<br>%{{x|%Y-Q%q}}<br>{response_var}: %{{y:.2f}}<extra></extra>",
+                    hovertemplate=f"{iso3_to_label(c)} forecast<br>%{{x|%Y-Q%q}}<br>{response_var}: %{{y:.2f}}<extra></extra>",
                 )
             )
     fig.update_layout(
@@ -847,7 +851,7 @@ def plot_enso_forecast_online(forecast_bundle, panel_df, plot_start=pd.Timestamp
             fillcolor="rgba(255, 127, 14, 0.22)",
             line=dict(color="rgba(255,255,255,0)"),
             hoverinfo="skip",
-            name="Min-max band",
+            name="Low-high scenario range",
             showlegend=True,
         )
     )
@@ -864,7 +868,7 @@ def plot_enso_forecast_online(forecast_bundle, panel_df, plot_start=pd.Timestamp
     )
     fig.add_vline(x=mean.index[0], line_dash="dash", line_color="#888888", opacity=0.7)
     fig.update_layout(
-        title="ENSO forecast with min-max band",
+        title="ENSO history and forecast (low-high scenario range)",
         xaxis_title="Quarter",
         yaxis_title="ENSO",
         legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="left", x=0),
@@ -880,6 +884,8 @@ def plot_metric_impact_map(summary_df, response_var, countries=None):
     countries = list(countries or summary_df["country"].dropna().astype(str).unique())
     if not countries:
         return None
+    summary_df = summary_df.copy()
+    summary_df["country_name"] = summary_df["country"].map(iso3_to_label)
     world = gpd.read_file(_ROOT / "data" / "natural_earth" / "ne_110m_admin_0_countries.shp")
     df = world[world["ISO_A3"].isin(countries)].merge(
         summary_df,
@@ -898,13 +904,14 @@ def plot_metric_impact_map(summary_df, response_var, countries=None):
         range_color=(-vmax, vmax),
         hover_name="NAME",
         hover_data={
-            "country": True,
+            "country": False,
+            "country_name": True,
             "cumulative_min": ":.2f",
             "cumulative_mean": ":.2f",
             "cumulative_max": ":.2f",
         },
-        labels={"cumulative_mean": "Mean cumulative difference"},
-        title=f"{response_var}: Cumulative mean impact vs no ENSO",
+        labels={"country_name": "Country", "cumulative_mean": "Mean cumulative difference"},
+        title=f"{response_var}: Cumulative impact relative to a no-ENSO baseline",
     )
     fig.update_traces(marker_line_color="#4D4D4D", marker_line_width=0.8)
     fig.update_geos(
@@ -1170,7 +1177,7 @@ def plot_impact_overlap(raw_yearly, surprise_yearly, info_years, climate_years, 
         )
 
     fig.update_layout(
-        title=f"{iso3}: Observed impact, model surprise, and candidate structural-break years",
+        title=f"{iso3_to_label(iso3)}: Observed impact, model surprise, and candidate structural-break years",
         xaxis_title="Year",
         yaxis_title="Percentile score, forward-window averaged",
         yaxis=dict(range=[0, 1]),
@@ -1241,6 +1248,36 @@ def render_map_color_legend():
                 """,
                 unsafe_allow_html=True,
             )
+
+
+def prepare_structural_break_map_html(html_text: str) -> str:
+    """Tidy the pre-generated Plotly map before embedding it in Streamlit."""
+    html_text = re.sub(
+        r'"title":\{"text":"Structural Break Map - \d{4}"\}',
+        '"title":{"text":""}',
+        html_text,
+    )
+    html_text = html_text.replace(
+        '"legend":{"title":{"text":"point_color"},"tracegroupgap":0,"itemsizing":"constant"}',
+        '"showlegend":false,"legend":{"title":{"text":""},"tracegroupgap":0,"itemsizing":"constant"}',
+    )
+    html_text = html_text.replace('"point_color"', '"Structural break score"')
+    html_text = html_text.replace('"point_"', '"Structural break score"')
+    html_text += """
+    <script>
+    setTimeout(function() {
+      var gd = document.querySelector(".plotly-graph-div");
+      if (!gd || !window.Plotly) {
+        return;
+      }
+      window.Plotly.relayout(gd, {
+        "title.text": "",
+        "showlegend": false
+      });
+    }, 500);
+    </script>
+    """
+    return html_text
 
 
 def build_enso_coeff_df_from_offline(country_pack):
@@ -1588,7 +1625,8 @@ with tab_climate_risk:
         "so ENSO-conditioned changes in moisture-stress probabilities are generally smaller and "
         "should be interpreted more cautiously than changes in heat-stress probabilities."
     )
-    risk_table = prob_rows_df.sort_values("Heat probability (%)", ascending=False)
+    risk_table = prob_rows_df.sort_values("Heat probability (%)", ascending=False).copy()
+    risk_table["Country"] = risk_table["Country"].map(iso3_to_label)
     st.dataframe(
         risk_table,
         column_config={
@@ -1712,7 +1750,7 @@ with tab_scenario:
             st.plotly_chart(fig_selected, width="stretch")
 
         if not q_summary.empty:
-            st.subheader("Impacts based on forecasted ENSO (min, mean, max) and future ENSO = 0")
+            st.subheader("Projected GDP growth and ENSO impacts relative to a no-ENSO baseline")
             st.caption(
                 "Historical observations are used through 2026Q1. Where recent economic data are "
                 "unavailable, near-term values are estimated before the forecast period begins. "
@@ -1724,24 +1762,27 @@ with tab_scenario:
                 c_cum = c_summary[c_summary["country"] == c].copy()
                 if c_quarters.empty:
                     continue
-                st.markdown(f"**{c}**")
+                st.markdown(f"**{iso3_to_label(c)}**")
                 if not c_cum.empty:
                     r = c_cum.iloc[0]
                     st.metric(
-                        f"{response_var}: Cumulative mean impact vs no ENSO",
+                        f"{response_var}: Cumulative impact relative to a no-ENSO baseline",
                         f"{r['cumulative_mean']:+.2f} p.p.",
                         delta=f"{r['cumulative_min']:+.2f} to {r['cumulative_max']:+.2f} p.p.",
                         help="Cumulative forecast difference between the ENSO scenario and a no-ENSO-impact baseline, shown in percentage points.",
                     )
                 show_tbl = c_quarters.copy()
                 show_tbl["quarter"] = show_tbl["quarter"].dt.to_period("Q").astype(str)
+                if "period_type" in show_tbl.columns:
+                    show_tbl["period_type"] = show_tbl["period_type"].replace({"Gap fill / nowcast": "Estimated"})
+                response_label = response_table_label(response_var)
                 show_tbl = show_tbl.rename(
                     columns={
                         "quarter": "Quarter",
                         "period_type": "Period type",
-                        "value_min": f"{response_var} (min ENSO)",
-                        "value_mean": f"{response_var} (mean ENSO)",
-                        "value_max": f"{response_var} (max ENSO)",
+                        "value_min": f"{response_label} (Low ENSO)",
+                        "value_mean": f"{response_label} (Mean ENSO)",
+                        "value_max": f"{response_label} (High ENSO)",
                         "impact_min": f"{response_var} (min vs no ENSO)",
                         "impact_mean": f"{response_var} (mean vs no ENSO)",
                         "impact_max": f"{response_var} (max vs no ENSO)",
@@ -1752,9 +1793,9 @@ with tab_scenario:
                         [
                             "Quarter",
                             "Period type",
-                            f"{response_var} (min ENSO)",
-                            f"{response_var} (mean ENSO)",
-                            f"{response_var} (max ENSO)",
+                            f"{response_label} (Low ENSO)",
+                            f"{response_label} (Mean ENSO)",
+                            f"{response_label} (High ENSO)",
                             f"{response_var} (min vs no ENSO)",
                             f"{response_var} (mean vs no ENSO)",
                             f"{response_var} (max vs no ENSO)",
@@ -1927,14 +1968,14 @@ with tab_event_study:
 
             if event_mode == "Observed Responses":
                 event_title = (
-                    f"<b>{event_country}: Observed macroeconomic responses around the selected ENSO peaks</b>"
+                    f"<b>{iso3_to_label(event_country)}: Observed macroeconomic responses around the selected ENSO peaks</b>"
                     "<br>All series are aligned so that the ENSO peak occurs at t=0. "
                     "Values are shown relative to their levels two quarters before the peak (t=-2)."
                 )
                 y_title = "Difference from value 2 quarters before ENSO peak"
             else:
                 event_title = (
-                    f"<b>{event_country}: Estimated ENSO effects around the selected ENSO peaks</b>"
+                    f"<b>{iso3_to_label(event_country)}: Estimated ENSO effects around the selected ENSO peaks</b>"
                     "<br>Effects represent the model-estimated contribution of ENSO relative to a "
                     "counterfactual scenario in which ENSO is removed beginning two quarters before the peak."
                 )
@@ -2162,7 +2203,7 @@ with tab_structural_break:
             continue
 
         score_pick = st.multiselect(
-            f"Score series ({iso3})",
+            f"Score series ({iso3_to_label(iso3)})",
             options=score_cols,
             default=score_cols[:3],
             key=f"sb_score_pick_{iso3}",
@@ -2184,7 +2225,7 @@ with tab_structural_break:
             y="value",
             color="series",
             markers=True,
-            title=f"{iso3}: structural break score series (model diagnostics)",
+            title=f"{iso3_to_label(iso3)}: structural break score series (model diagnostics)",
         )
 
         model_break_years = _model_break_years(df_sc) if freq_mode == "quarterly" else []
@@ -2242,7 +2283,7 @@ with tab_structural_break:
                     st.caption("No valid years in WB records.")
                     continue
                 y_pick = st.selectbox(
-                    f"Year ({iso3})",
+                    f"Year ({iso3_to_label(iso3)})",
                     options=years,
                     key=f"wb_year_{iso3}",
                     help=HELP_TEXT["wb_year"],
@@ -2328,6 +2369,10 @@ with tab_structural_break:
                     "summary": "Evidence Summary",
                 }
             )
+            if "Country" in gdf_display.columns:
+                gdf_display["Country"] = gdf_display["Country"].map(
+                    lambda x: iso3_to_label(country_to_iso3(x) or str(x))
+                )
             st.dataframe(
                 gdf_display,
                 hide_index=True,
@@ -2473,7 +2518,6 @@ with tab_structural_break:
         "the strength of the break signal. Colors distinguish general structural breaks from potential "
         "climate-related structural breaks."
     )
-    render_map_color_legend()
     map_files = sorted(PREGENERATED_MAP_DIR.glob("map_*.html"))
     year_to_file = {}
     for f in map_files:
@@ -2496,8 +2540,9 @@ with tab_structural_break:
         if map_path is None or not map_path.exists():
             st.warning(f"Map file not found for year {map_year}.")
         else:
+            render_map_color_legend()
             try:
-                html_text = map_path.read_text(encoding="utf-8")
+                html_text = prepare_structural_break_map_html(map_path.read_text(encoding="utf-8"))
                 components.html(html_text, height=720, scrolling=True)
             except Exception as e:
                 st.error(f"Failed to load map HTML: {e}")
