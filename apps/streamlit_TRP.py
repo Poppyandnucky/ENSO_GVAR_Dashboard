@@ -160,7 +160,27 @@ def render_tab_description(section_index):
 
 
 def render_help_button(container, text, key):
-    container.button("?", key=key, help=text)
+    safe_text = html.escape(str(text), quote=True)
+    container.markdown(
+        f"""
+        <span title="{safe_text}" style="
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            width:18px;
+            height:18px;
+            border:1.5px solid #8A8F98;
+            border-radius:50%;
+            color:#6B7280;
+            font-size:12px;
+            font-weight:700;
+            line-height:18px;
+            cursor:help;
+            margin-top:2px;
+        ">?</span>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def get_country_regime_ts(panel, country):
@@ -1223,19 +1243,9 @@ def plot_impact_overlap(raw_yearly, surprise_yearly, info_years, climate_years, 
 
 
 def render_break_shading_legend():
-    text_col, help_col = st.columns([0.97, 0.03])
-    text_col.caption(
+    st.caption(
         "Shaded regions indicate years identified as potential structural breaks based on "
         "documentary evidence, unusually large economic changes, or unusually large model surprises."
-    )
-    render_help_button(
-        help_col,
-        "Observed impact measures the magnitude of observed economic changes. Model surprise "
-        "measures how difficult those changes were for the model to explain. Shaded regions "
-        "highlight candidate structural-break years identified from documentary evidence, top "
-        "observed-impact years, and top model-surprise years. Years in which multiple indicators "
-        "coincide may provide stronger evidence of structural change.",
-        "break_shading_help",
     )
     legend_items = [
         (
@@ -1257,15 +1267,13 @@ def render_break_shading_legend():
     cols = st.columns([1.15, 1.25, 1.25])
     for col, (color, label, help_text) in zip(cols, legend_items):
         with col:
-            label_col, help_col = st.columns([0.88, 0.12])
-            label_col.markdown(
+            st.markdown(
                 f"""
                 <span style="display:inline-block;width:10px;height:10px;background:{color};opacity:0.65;border:1px solid #bbb;margin-right:6px;"></span>
                 {label}
                 """,
                 unsafe_allow_html=True,
             )
-            render_help_button(help_col, help_text, f"break_legend_help_{label}")
 
 
 def render_map_color_legend():
