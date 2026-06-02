@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+import html
 import pickle
 import re
 
@@ -223,6 +224,36 @@ def country_to_iso3(value):
 
 def iso3_to_label(iso3):
     return ISO_TO_NAME.get(iso3, iso3)
+
+
+def styled_header(text, bg_color="rgba(26, 82, 140, 0.92)", font_size="1.2rem", padding="12px 12px"):
+    """
+    bg_color defaults to a Streamlit-compatible blue at 92% opacity.
+    font_size defaults to 1.2rem (standard subheader size).
+    """
+    safe_text = html.escape(str(text))
+    st.markdown(
+        f"""
+        <div style="background-color: {bg_color}; padding: {padding}; border-radius: 0px; margin-bottom: 20px;">
+            <h2 style="color: white; margin: 0; font-size: {font_size}; font-family: sans-serif; font-weight: 600;">
+                {safe_text}
+            </h2>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def st_title(text, bg_color="rgba(26, 82, 140, 0.92)", font_size="2.4rem", padding="12px 12px"):
+    styled_header(text, bg_color, font_size, padding)
+
+
+def st_header(text, bg_color="rgba(26, 82, 140, 0.92)", font_size="1.8rem", padding="10px 12px"):
+    styled_header(text, bg_color, font_size, padding)
+
+
+def st_subheader(text, bg_color="rgba(26, 82, 140, 0.92)", font_size="1.5rem", padding="8px 12px"):
+    styled_header(text, bg_color, font_size, padding)
 
 
 def default_option_index(options, preferred, fallback=0):
@@ -1479,7 +1510,7 @@ st.set_page_config(
     page_title="Climate–Macro GVAR Explorer",
     layout="wide"
 )
-st.title("Climate-Macroeconomic Risk Explorer")
+st_title("Climate-Macroeconomic Risk Explorer")
 
 from trp.inputs import load_gvar_panel, load_stressor_probabilities, panel_csv_path
 
@@ -1533,7 +1564,7 @@ tab_climate_risk, tab_scenario, tab_event_study, tab_structural_break, tab_guide
 )
 
 with tab_climate_risk:
-    st.header("Climate Early-Warning Chain")
+    st_header("Climate Early-Warning Chain")
     render_tab_description(0)
 
     st.markdown(
@@ -1579,7 +1610,7 @@ with tab_climate_risk:
         else np.nan
     )
 
-    st.subheader(f"Results for {country}")
+    st_subheader(f"Results for {country}")
     p_row = prob_df[prob_df["country"] == country]
     c1, c2, c3, c4 = st.columns(4)
     baseline = 1.0 - heat_moist_pct / 100
@@ -1619,7 +1650,7 @@ with tab_climate_risk:
         "and provide context for scenario selection."
     )
 
-    st.subheader("Country comparison of next-quarter climate stress risk")
+    st_subheader("Country comparison of next-quarter climate stress risk")
     st.caption(
         "Probabilities are conditioned on the selected ENSO forecast and represent the likelihood "
         "of exceeding the specified climate-stress threshold during the next quarter."
@@ -1657,7 +1688,7 @@ with tab_climate_risk:
     )
 
     def choropleth_map(plt_title, colorbar_title, map_color, map_lbl):
-        st.subheader(plt_title)
+        st_subheader(plt_title)
         fig = px.choropleth(
             world,
             geojson=world.geometry,
@@ -1718,7 +1749,7 @@ with tab_climate_risk:
 
 
 with tab_scenario:
-    st.header("Scenario Impacts")
+    st_header("Scenario Impacts")
     render_tab_description(1)
 
     forecast_pack = load_forecast_bundle(forecast_pickle_state())
@@ -1729,7 +1760,7 @@ with tab_scenario:
         )
 
     if not forecast_pack["bundle"]:
-        st.subheader("Core forecast")
+        st_subheader("Core forecast")
         st.info("No forecast bundle is available for the online ENSO forecast chart.")
     else:
         selected_df = build_forecast_plot_df(
@@ -1741,7 +1772,7 @@ with tab_scenario:
         )
         q_summary, c_summary = summarize_forecast_ranges(selected_df)
 
-        st.subheader(f"Forecast path for {iso3_to_label(country)}")
+        st_subheader(f"Forecast path for {iso3_to_label(country)}")
         enso_fig = plot_enso_forecast_online(forecast_pack["bundle"], panel)
         if enso_fig is not None:
             st.plotly_chart(enso_fig, width="stretch")
@@ -1755,7 +1786,7 @@ with tab_scenario:
             st.plotly_chart(fig_selected, width="stretch")
 
         if not q_summary.empty:
-            st.subheader("Projected GDP growth and ENSO impacts relative to a no-ENSO baseline")
+            st_subheader("Projected GDP growth and ENSO impacts relative to a no-ENSO baseline")
             st.caption(
                 "Historical observations are used through 2026Q1. Where recent economic data are "
                 "unavailable, near-term values are estimated before the forecast period begins. "
@@ -1823,7 +1854,7 @@ with tab_scenario:
                     c for c in current_scenario_countries if c in country_options
                 ] or [country]
 
-        st.subheader("Multi-country comparison and cumulative impact maps")
+        st_subheader("Multi-country comparison and cumulative impact maps")
         scenario_countries = st.multiselect(
             "Countries",
             options=country_options,
@@ -1866,7 +1897,7 @@ with tab_scenario:
 
 
 with tab_event_study:
-    st.header("ENSO Peak Event Study")
+    st_header("ENSO Peak Event Study")
     render_tab_description(2)
     st.caption(
         "The quarter of each ENSO peak is aligned at t=0. Observed Responses show how each "
@@ -2001,7 +2032,7 @@ with tab_event_study:
 
 
 with tab_structural_break:
-    st.header("Structural Break")
+    st_header("Structural Break")
     render_tab_description(3)
     st.markdown(
         "A set of analyses generated from Kalman filter / EM outputs, "
@@ -2097,7 +2128,7 @@ with tab_structural_break:
         help=HELP_TEXT["llm_overlay"],
     )
 
-    st.subheader("1) Structural break scores")
+    st_subheader("1) Structural break scores")
 
     def _model_break_scores_from_offline(iso3):
         d = offline_per_country.get(iso3)
@@ -2268,7 +2299,7 @@ with tab_structural_break:
 
         st.plotly_chart(fig_sb, width="stretch")
 
-    st.subheader("2) World Bank document information")
+    st_subheader("2) World Bank document information")
     if wb_top4_df.empty:
         st.warning("`structural_break/wb_top4.csv` not found or empty.")
     else:
@@ -2384,7 +2415,7 @@ with tab_structural_break:
                 width="stretch",
             )
 
-    st.subheader("3.1) Observed impact vs model surprise overlap")
+    st_subheader("3.1) Observed impact vs model surprise overlap")
     st.caption(
         "Observed impact uses percentile-ranked macro changes. Model surprise uses the existing "
         "pickle break diagnostics, preferring composite score and falling back to innovation score. "
@@ -2456,7 +2487,7 @@ with tab_structural_break:
             )
             st.dataframe(summary_df, hide_index=True, width="stretch")
 
-    # st.subheader("3.2) ENSO coefficients after drop-year refit")
+    # st_subheader("3.2) ENSO coefficients after drop-year refit")
     # if not offline_refit_per_country:
     #     st.info(
     #         "No drop-year refit results found in the pipeline pickle. "
@@ -2517,7 +2548,7 @@ with tab_structural_break:
     #             )
     #             st.plotly_chart(fig_refit_enso, width="stretch")
 
-    st.subheader("4) Global structural-break map by year")
+    st_subheader("4) Global structural-break map by year")
     st.caption(
         "This map shows candidate structural-break locations for the selected year. Dot size reflects "
         "the strength of the break signal. Colors distinguish general structural breaks from potential "
@@ -2553,8 +2584,8 @@ with tab_structural_break:
                 st.error(f"Failed to load map HTML: {e}")
 
 with tab_guide:
-    st.header("Dashboard Guide")
-    st.subheader("Climate-Macroeconomic Risk Explorer")
+    st_header("Dashboard Guide")
+    st_subheader("Climate-Macroeconomic Risk Explorer")
     st.markdown(
         """
         This dashboard explores how El Niño-Southern Oscillation (ENSO) conditions may influence
@@ -2588,7 +2619,7 @@ with tab_guide:
         ),
     ]
 
-    st.subheader("Recommended workflow")
+    st_subheader("Recommended workflow")
     for i, (step_title, step_text) in enumerate(workflow_steps, start=1):
         st.markdown(f"**{i}. {step_title}**  \n{step_text}")
 
@@ -2663,7 +2694,7 @@ with tab_guide:
         ),
     ]
 
-    st.subheader("Tab details")
+    st_subheader("Tab details")
     for i, (title, purpose, shows, interpretation, question) in enumerate(guide_sections):
         with st.expander(title, expanded=(i == 0)):
             st.markdown(f"**Purpose**  \n{purpose}")
@@ -2674,7 +2705,7 @@ with tab_guide:
             st.markdown(f"**Key question**  \n{question}")
 
 with tab_feedback:
-    st.header("Feedback")
+    st_header("Feedback")
     st.markdown(
         "Use this form to report bugs, confusing results, interpretation issues, "
         "or suggestions for improving the dashboard."
