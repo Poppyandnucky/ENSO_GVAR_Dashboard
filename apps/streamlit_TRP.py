@@ -225,6 +225,10 @@ def iso3_to_label(iso3):
     return ISO_TO_NAME.get(iso3, iso3)
 
 
+def default_option_index(options, preferred, fallback=0):
+    return options.index(preferred) if preferred in options else fallback
+
+
 def response_table_label(response_var):
     return {"GDP_YoY": "GDP Growth"}.get(response_var, response_var)
 
@@ -1503,6 +1507,7 @@ with control_cols[0]:
     country = st.selectbox(
         "Country",
         country_options,
+        index=default_option_index(country_options, "CHL"),
         format_func=iso3_to_label,
         key="country_select",
         help=HELP_TEXT["country"],
@@ -1876,7 +1881,7 @@ with tab_event_study:
         event_country = st.selectbox(
             "Country",
             country_options,
-            index=country_options.index(country),
+            index=default_option_index(country_options, "MEX"),
             format_func=iso3_to_label,
             key="event_country",
         )
