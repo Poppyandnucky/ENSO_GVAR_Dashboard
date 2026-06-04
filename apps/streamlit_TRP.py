@@ -159,6 +159,87 @@ def render_tab_description(section_index):
         st.markdown(f"**Key question**  \n{question}")
 
 
+def inject_global_control_styles():
+    st.markdown(
+        """
+        <style>
+        [data-testid="stLayoutWrapper"]:has(.st-key-analysis_scope_panel) {
+            position: sticky;
+            top: 3.5rem;
+            z-index: 999;
+        }
+        .st-key-analysis_scope_panel {
+            background-color: #eef5fc;
+            border-left: 5px solid #2c6fb7;
+            border-radius: 8px;
+            padding: 18px 22px 16px 22px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        .st-key-analysis_scope_panel h3 {
+            margin: 0 0 10px 0;
+            color: #173f73;
+            font-size: 1.35rem;
+            font-weight: 800;
+        }
+        .st-key-analysis_scope_panel p {
+            margin: 0 0 14px 0;
+            color: #34506f;
+            font-size: 1.08rem;
+            line-height: 1.45;
+        }
+        .st-key-analysis_scope_panel [data-testid="stSelectbox"] label p {
+            color: #27466d;
+            font-size: 1.05rem;
+            font-weight: 650;
+            margin-bottom: 6px;
+        }
+        .st-key-analysis_scope_panel [data-baseweb="select"] > div {
+            background-color: rgba(26, 82, 140, 0.92) !important;
+            border-color: rgba(26, 82, 140, 0.92) !important;
+            min-height: 54px;
+        }
+        .st-key-analysis_scope_panel [data-baseweb="select"] div,
+        .st-key-analysis_scope_panel [data-baseweb="select"] span,
+        .st-key-analysis_scope_panel [data-baseweb="select"] input {
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            font-size: 1.12rem !important;
+            font-weight: 700;
+        }
+        .st-key-analysis_scope_panel [data-baseweb="select"] svg {
+            fill: #ffffff !important;
+            color: #ffffff !important;
+        }
+        .current-selection-callout {
+            background-color: #f7fbff;
+            border-left: 4px solid #2c6fb7;
+            border-radius: 6px;
+            padding: 9px 12px;
+            margin: 4px 0 16px 0;
+            color: #1f2d3d;
+            font-size: 0.95rem;
+        }
+        .current-selection-callout strong {
+            color: #173f73;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_current_selection(country, response_var):
+    st.markdown(
+        f"""
+        <div class="current-selection-callout">
+            <strong>Current Selection:</strong> {html.escape(iso3_to_label(country))} | {html.escape(response_var)}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_help_button(container, text, key):
     safe_text = html.escape(str(text), quote=True)
     container.markdown(
@@ -815,15 +896,19 @@ def plot_selected_country_forecast(plot_df, response_var, country_label):
                     x=no_enso.index,
                     y=no_enso,
                     mode="lines+markers",
-                    name="ENSO = 0 baseline",
+                    name="No-ENSO counterfactual (ENSO index = 0)",
                     line=dict(color="#111111", width=2, dash="dash"),
                     marker=dict(color="#111111"),
-                    hovertemplate=f"ENSO = 0 baseline<br>%{{x|%Y-Q%q}}<br>{response_var}: %{{y:.2f}}<extra></extra>",
+                    hovertemplate=(
+                        "No-ENSO counterfactual"
+                        "<br>Future ENSO index set to 0"
+                        f"<br>%{{x|%Y-Q%q}}<br>{response_var}: %{{y:.2f}}<extra></extra>"
+                    ),
                 )
             )
 
     fig.update_layout(
-        title=f"{country_label}: {response_var} based on forecasted ENSO and future ENSO = 0",
+        title=f"{country_label}: {response_var} under forecasted ENSO vs no-ENSO counterfactual",
         xaxis_title="Quarter",
         yaxis_title=response_var,
         legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="left", x=0),
@@ -1353,6 +1438,7 @@ def build_enso_peak_event_study(
     country,
     value_mode,
     selected_peak_labels=None,
+    reference_relative_quarter=-2,
 ):
     enso = (
         panel_df[["quarter", "ENSO"]]
@@ -1413,13 +1499,13 @@ def build_enso_peak_event_study(
     rows = []
     for peak in peaks.itertuples(index=False):
         peak_period = peak.quarter.to_period("Q")
-        origin_period = peak_period - 2
+        origin_period = peak_period + reference_relative_quarter
         if peak_period not in df.index or origin_period not in df.index:
             continue
         base = df.loc[origin_period, vars_use]
         if isinstance(base, pd.DataFrame):
             base = base.iloc[0]
-        for rel_q in range(-4, 13):
+        for rel_q in range(reference_relative_quarter, 13):
             q = peak_period + rel_q
             if q not in df.index:
                 continue
@@ -1518,6 +1604,7 @@ st.set_page_config(
     page_title="Climate–Macro GVAR Explorer",
     layout="wide"
 )
+inject_global_control_styles()
 st_title("Climate-Macroeconomic Risk Explorer")
 
 from trp.inputs import load_gvar_panel, load_stressor_probabilities, panel_csv_path
@@ -1541,23 +1628,31 @@ if not country_options:
     st.error("No configured dashboard countries are available in the panel.")
     st.stop()
 
-control_cols = st.columns([1.2, 1.2, 2.6])
-with control_cols[0]:
-    country = st.selectbox(
-        "Country",
-        country_options,
-        index=default_option_index(country_options, "CHL"),
-        format_func=iso3_to_label,
-        key="country_select",
-        help=HELP_TEXT["country"],
+with st.container(key="analysis_scope_panel"):
+    st.markdown(
+        """
+        <h3>🌎 Analysis Scope</h3>
+        <p>Country and Response selections apply to all dashboard modules.</p>
+        """,
+        unsafe_allow_html=True,
     )
-with control_cols[1]:
-    response_var = st.selectbox(
-        "Response",
-        [v for v in MACRO_IMPACT_VARS if v in panel.columns],
-        key="response_select",
-        help=HELP_TEXT["response"],
-    )
+    control_cols = st.columns([1.2, 1.2, 2.6])
+    with control_cols[0]:
+        country = st.selectbox(
+            "Country",
+            country_options,
+            index=default_option_index(country_options, "CHL"),
+            format_func=iso3_to_label,
+            key="country_select",
+            help=HELP_TEXT["country"],
+        )
+    with control_cols[1]:
+        response_var = st.selectbox(
+            "Response",
+            [v for v in MACRO_IMPACT_VARS if v in panel.columns],
+            key="response_select",
+            help=HELP_TEXT["response"],
+        )
 
 # ----- STREAMLIT TABS
 tab_climate_risk, tab_scenario, tab_event_study, tab_structural_break, tab_guide, tab_feedback = st.tabs(
@@ -1573,6 +1668,7 @@ tab_climate_risk, tab_scenario, tab_event_study, tab_structural_break, tab_guide
 
 with tab_climate_risk:
     st_header("Climate Early-Warning Chain")
+    render_current_selection(country, response_var)
     render_tab_description(0)
 
     st.markdown(
@@ -1758,6 +1854,7 @@ with tab_climate_risk:
 
 with tab_scenario:
     st_header("Scenario Impacts")
+    render_current_selection(country, response_var)
     render_tab_description(1)
 
     forecast_pack = load_forecast_bundle(forecast_pickle_state())
@@ -1784,6 +1881,10 @@ with tab_scenario:
         enso_fig = plot_enso_forecast_online(forecast_pack["bundle"], panel)
         if enso_fig is not None:
             st.plotly_chart(enso_fig, width="stretch")
+            st.caption(
+                "Source: NOAA CPC CFSv2 seasonal forecast, "
+                "https://www.cpc.ncep.noaa.gov/products/CFSv2/CFSv2seasonal.shtml"
+            )
         else:
             st.info("Forecast pickle does not contain ENSO forecast data.")
 
@@ -1792,6 +1893,11 @@ with tab_scenario:
             st.info("Forecast pickle does not contain data for the selected country/response.")
         else:
             st.plotly_chart(fig_selected, width="stretch")
+            st.caption(
+                "No-ENSO counterfactual: the same forecasting model is run with future ENSO index "
+                "values set to 0, so the gap from the forecasted ENSO scenario indicates the "
+                "model-implied macroeconomic impact of ENSO."
+            )
 
         if not q_summary.empty:
             st_subheader("Projected GDP growth and ENSO impacts relative to a no-ENSO baseline")
@@ -1883,39 +1989,40 @@ with tab_scenario:
             st.plotly_chart(fig_core, width="stretch")
 
         st.markdown("**Cumulative impact maps**")
-        if not scenario_countries:
-            st.info("Select at least one country to draw cumulative impact maps.")
-        else:
-            map_cols = st.columns(2)
-            for i, metric in enumerate([v for v in MACRO_IMPACT_VARS if v in panel.columns]):
-                metric_df = build_forecast_plot_df(
-                    forecast_pack["bundle"],
-                    panel,
-                    scenario_countries,
-                    metric,
-                    history_start=None,
-                )
-                _, metric_summary = summarize_forecast_ranges(metric_df)
-                fig_map = plot_metric_impact_map(metric_summary, metric, countries=scenario_countries)
-                with map_cols[i % 2]:
-                    if fig_map is not None:
-                        st.plotly_chart(fig_map, width="stretch")
-                    else:
-                        st.info(f"No cumulative impact map data for {metric}.")
+        st.caption(
+            "Map range: 2026Q2-2027Q1 cumulative ENSO impact. Maps show all 12 dashboard "
+            "countries and do not depend on the multi-country selection above."
+        )
+        map_countries = country_options
+        map_cols = st.columns(2)
+        for i, metric in enumerate([v for v in MACRO_IMPACT_VARS if v in panel.columns]):
+            metric_df = build_forecast_plot_df(
+                forecast_pack["bundle"],
+                panel,
+                map_countries,
+                metric,
+                history_start=None,
+            )
+            _, metric_summary = summarize_forecast_ranges(metric_df)
+            fig_map = plot_metric_impact_map(metric_summary, metric, countries=map_countries)
+            with map_cols[i % 2]:
+                if fig_map is not None:
+                    st.plotly_chart(fig_map, width="stretch")
+                else:
+                    st.info(f"No cumulative impact map data for {metric}.")
 
 
 with tab_event_study:
     st_header("ENSO Peak Event Study")
+    render_current_selection(country, response_var)
     render_tab_description(2)
     st.caption(
         "The quarter of each ENSO peak is aligned at t=0. Observed Responses show how each "
-        "indicator changed relative to its value two quarters before the peak. Estimated ENSO "
-        "Effects show the model-estimated impact of ENSO, calculated as the difference between "
-        "simulations with the historical ENSO event and simulations in which ENSO is removed "
-        "beginning two quarters before the peak."
+        "indicator changes relative to the selected reference quarter. Estimated ENSO Effects "
+        "show the model-estimated impact of ENSO from the selected reference quarter onward."
     )
 
-    event_cols = st.columns([1, 4])
+    event_cols = st.columns([1, 1.2, 3.8])
     with event_cols[0]:
         event_country = st.selectbox(
             "Country",
@@ -1923,6 +2030,15 @@ with tab_event_study:
             index=default_option_index(country_options, "MEX"),
             format_func=iso3_to_label,
             key="event_country",
+        )
+    with event_cols[1]:
+        reference_relative_quarter = st.selectbox(
+            "Reference quarter",
+            options=[-2, -1, 0],
+            index=2,
+            format_func=lambda q: f"t={q}",
+            key="event_reference_quarter",
+            help="Quarter used as the zero-change reference point. The event-study plots start from this quarter.",
         )
     st.session_state.pop("event_mode", None)
 
@@ -1934,6 +2050,7 @@ with tab_event_study:
         event_pipeline_pack,
         event_country,
         "Observed Responses",
+        reference_relative_quarter=reference_relative_quarter,
     )
 
     peak_table = peak_df.copy()
@@ -1966,6 +2083,7 @@ with tab_event_study:
                 event_country,
                 event_mode,
                 selected_peak_labels=selected_peaks,
+                reference_relative_quarter=reference_relative_quarter,
             )
             if event_df.empty:
                 st.info(f"No event-study data available for {event_mode}.")
@@ -2012,23 +2130,27 @@ with tab_event_study:
 
             if event_mode == "Observed Responses":
                 event_title = (
-                    f"<b>{iso3_to_label(event_country)}: Observed macroeconomic responses around the selected ENSO peaks</b>"
-                    "<br>All series are aligned so that the ENSO peak occurs at t=0. "
-                    "Values are shown relative to their levels two quarters before the peak (t=-2)."
+                    f"{iso3_to_label(event_country)}: Observed macroeconomic responses around selected ENSO peaks"
                 )
-                y_title = "Difference from value 2 quarters before ENSO peak"
+                y_title = "Change from reference"
+                st.caption(
+                    "Observed responses are indexed to zero at the selected reference quarter "
+                    f"(t={reference_relative_quarter}); the ENSO peak occurs at t=0."
+                )
             else:
                 event_title = (
-                    f"<b>{iso3_to_label(event_country)}: Estimated ENSO effects around the selected ENSO peaks</b>"
-                    "<br>Effects represent the model-estimated contribution of ENSO relative to a "
-                    "counterfactual scenario in which ENSO is removed beginning two quarters before the peak."
+                    f"{iso3_to_label(event_country)}: Estimated ENSO effects around selected ENSO peaks"
                 )
-                y_title = "Estimated ENSO effects"
+                y_title = "Estimated ENSO effect"
+                st.caption(
+                    "Estimated effects represent the model-implied ENSO contribution from the selected "
+                    f"reference quarter (t={reference_relative_quarter}) onward."
+                )
 
             fig_event.update_layout(
                 title=event_title,
                 height=720,
-                margin=dict(l=30, r=20, t=100, b=80),
+                margin=dict(l=55, r=20, t=70, b=80),
                 legend=dict(orientation="h", yanchor="top", y=-0.08, xanchor="left", x=0),
             )
             fig_event.update_xaxes(title_text="Quarters from ENSO peak")
@@ -2041,6 +2163,7 @@ with tab_event_study:
 
 with tab_structural_break:
     st_header("Structural Break")
+    render_current_selection(country, response_var)
     render_tab_description(3)
     st.markdown(
         "A set of analyses generated from Kalman filter / EM outputs, "
@@ -2583,6 +2706,7 @@ with tab_structural_break:
 
 with tab_guide:
     st_header("Dashboard Guide")
+    render_current_selection(country, response_var)
     st_subheader("Climate-Macroeconomic Risk Explorer")
     st.markdown(
         """
@@ -2704,12 +2828,13 @@ with tab_guide:
 
 with tab_feedback:
     st_header("Feedback")
+    render_current_selection(country, response_var)
     st.markdown(
         "Use this form to report bugs, confusing results, interpretation issues, "
         "or suggestions for improving the dashboard."
     )
     components.iframe(
-        "https://docs.google.com/forms/d/e/1FAIpQLSdIKiK6GnJ902abmwt7-OO5k2OAOcQ6Dqnn_fkj1S_gZREA1g/viewform?embedded=true",
+        "https://forms.microsoft.com/Pages/ResponsePage.aspx?id=OPSkn-axO0eAP4b4rt8N7AeTQAt0SklBhYoUFkbp7hdUMzZDUUhITEYwNDE5M0lNMTZSMUhHUjBYRi4u",
         height=775,
         scrolling=True,
     )
