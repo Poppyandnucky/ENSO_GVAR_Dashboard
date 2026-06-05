@@ -1655,6 +1655,9 @@ with st.container(key="analysis_scope_panel"):
         )
 
 # ----- STREAMLIT TABS
+
+
+
 tab_climate_risk, tab_scenario, tab_event_study, tab_structural_break, tab_guide, tab_feedback = st.tabs(
     [
         "Climate Early-Warning Chain",
@@ -1665,6 +1668,35 @@ tab_climate_risk, tab_scenario, tab_event_study, tab_structural_break, tab_guide
         "Feedback",
     ]
 )
+
+st.markdown("""
+<style>
+    /* Style for the text inside ALL tabs */
+    .stTabs [data-baseweb="tab"] p {
+        font-size: 150%;
+    }
+
+    /* 1. Light background for the entire tab row */
+    div[data-baseweb="tab-list"] {
+        background-color: #EBF2F8;
+        border-radius: 8px 8px 0 0;
+        padding: 4px 4px 0 4px;
+    }
+
+    /* 2. Styling the Feedback Tab specifically (2rd tab) */
+    div[data-baseweb="tab-list"] button:nth-of-type(6) {
+        background-color: #E8F4F0 !important;
+        margin-left: 10px; /* Optional: adds a small gap to separate it */
+        border-radius: 6px 6px 0 0;
+    }
+
+    /* 3. Text color for the Feedback Tab */
+    div[data-baseweb="tab-list"] button:nth-of-type(6) p {
+        color: #2E7D6B !important;
+        font-weight: 600;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 with tab_climate_risk:
     st_header("Climate Early-Warning Chain")
