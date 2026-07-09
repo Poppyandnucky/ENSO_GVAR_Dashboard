@@ -1607,6 +1607,7 @@ st.set_page_config(
 inject_global_control_styles()
 st_title("Climate-Macroeconomic Risk Explorer")
 
+from apps.modules.el_nino_event import render_el_nino_event_module
 from trp.inputs import load_gvar_panel, load_stressor_probabilities, panel_csv_path
 
 # ----- STREAMLIT CACHED LOADERS (UI-level caching only)
@@ -1658,8 +1659,9 @@ with st.container(key="analysis_scope_panel"):
 
 
 
-tab_climate_risk, tab_scenario, tab_event_study, tab_structural_break, tab_guide, tab_feedback = st.tabs(
+tab_el_nino_event, tab_climate_risk, tab_scenario, tab_event_study, tab_structural_break, tab_guide, tab_feedback = st.tabs(
     [
+        "2026–2027 El Niño Event",
         "Climate Early-Warning Chain",
         "Scenario Impacts",
         "ENSO Peak Event Study",
@@ -1684,19 +1686,29 @@ st.markdown("""
     }
 
     /* 2. Styling the Feedback Tab specifically (2rd tab) */
-    div[data-baseweb="tab-list"] button:nth-of-type(6) {
+    div[data-baseweb="tab-list"] button:nth-of-type(7) {
         background-color: #E8F4F0 !important;
         margin-left: 10px; /* Optional: adds a small gap to separate it */
         border-radius: 6px 6px 0 0;
     }
 
     /* 3. Text color for the Feedback Tab */
-    div[data-baseweb="tab-list"] button:nth-of-type(6) p {
+    div[data-baseweb="tab-list"] button:nth-of-type(7) p {
         color: #2E7D6B !important;
         font-weight: 600;
     }
 </style>
 """, unsafe_allow_html=True)
+
+with tab_el_nino_event:
+    st_header("2026–2027 El Niño Event")
+    render_current_selection(country, response_var)
+    render_el_nino_event_module(
+        repo_root=_ROOT,
+        dashboard_countries=DASHBOARD_COUNTRIES,
+        selected_country=country,
+        country_label_func=iso3_to_label,
+    )
 
 with tab_climate_risk:
     st_header("Climate Early-Warning Chain")

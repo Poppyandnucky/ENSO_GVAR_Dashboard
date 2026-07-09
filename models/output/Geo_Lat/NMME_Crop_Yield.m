@@ -1,0 +1,719 @@
+function NMME_Crop_Yield()
+
+%% GROWING SEASON
+%  MIRCA-OS_2020_rf_v2
+%  Country State Distrct unit_code Crop Subcrop	Type Growing_area Planting_Month Maturity_Month
+%    some countries like Colombia has only one State and one Distrct (blanks)
+
+%% INITIALIZE
+%  countries:  country shape files
+%  c_names:    country names
+%  prN:        precipitation anomaly, mm/month
+%  t2N:        temperature, 2m, C
+%  lonN, latN: MNNE lat-lon
+%  datesN      MNNE dates 12 months in the future
+%  countries.NAME names of all of the countries
+
+countries = shaperead('ne_50m_admin_0_countries/ne_50m_admin_0_countries.shp', ...
+                      'UseGeoCoords',true);
+
+[ prN,t2N,lonN,latN,yearN,monthN,datesN,nN ] = read_NMME(202606,   0); % (yr_mo,flag_save)
+[ prE,t2E,          yearE,monthE,datesE,nE ] = read_ERA5(lonN,latN,0); % use saved file
+
+crops   = sort({'Maize','Wheat','Soya','Rice'});
+c_names = ({'Indonesia','India','Egypt','Brazil','Colombia','Kenya','Thailand','Chile','Mexico',...
+    'Philippines','South Africa','Peru'}); % Australia: little effect
+c_masks = cell(1,numel(c_names));
+HNs     = cell(1,numel(crops));
+
+for j_crop=1:numel(crops)
+    crop = crops{j_crop};
+    fprintf('- CROP: %s\n',crop)
+    HNs{j_crop}        = read_MIRCA(crop,lonN,latN,0);                 % flag_save
+    HN                 = HNs{j_crop};
+    [ HhN, HdN, HsN  ] = f_weight_H(t2N,prN,HN,nN,datesN);
+    [ HhE, HdE, HsE  ] = f_weight_H(t2E,prE,HN,nE,datesE);
+
+    j_figno = 990+j_crop-1;
+    fig = figure(j_figno);
+    fig.Name = sprintf('Yield %s',crop);    clf, tl   = tiledlayout('flow','TileSpacing','tight');
+    fig = figure(j_figno-100);
+    fig.Name = sprintf('Yield 2D %s',crop); clf, tl2D = tiledlayout('flow','TileSpacing','tight');
+
+    for i_c=1:numel(c_names)
+        c_name = c_names{i_c};
+        fprintf('--- COUNTRY: %s\n',c_name)
+        if j_crop==1
+            c_masks{i_c} = country_mask_NMME(countries,c_name,lonN,latN); % lat-lon mask for one country
+        end
+        c_mask       = c_masks{i_c};
+        [ T_FAO,yearFAO,YieldAnom,nFAO ] = read_FAO(c_name,crop);
+        if isempty(T_FAO)
+            figure(j_figno),     nexttile, ax = gca; ax.Visible = 'off';
+            figure(j_figno-100), nexttile, ax = gca; ax.Visible = 'off'; continue
+        end
+
+        [ HhNc,HdNc,HsNc ] = f_weight_c(HhN,HdN,HsN,nN,c_mask);
+        [ HhEc,HdEc,HsEc ] = f_weight_c(HhE,HdE,HsE,nE,c_mask);
+
+        %% GET FARMLAND-WEIGHTED HEAT, DRYNESS
+        HhEYc = nan(nFAO,1); HdEYc = HhEYc;
+
+        for i=1:nFAO                              % for each calendar year
+            yy      = yearFAO(i);                 % get the FAO year
+            %   idxY    = find(yearE==yy);            % find the corresponding 12 months in ERA5
+            idxEY   = find( ...
+                (yearE == yy-1 & monthE >= 11) | ...
+                (yearE == yy   & monthE <= 10));  % Nov-Dec => next year's growing season
+            %       (yearE == yy   & monthE <= 8));   % growing seasons Nov-Apr and Apr-Aug
+
+            HhEYc(i) = sum(HhEc(idxEY)) / sum(HsEc(idxEY));
+            HdEYc(i) = sum(HdEc(idxEY)) / sum(HsEc(idxEY));
+        end
+
+        yearPred = 2027;
+        yy       = yearPred;                      % prediction year
+        idxNY    = find( ...
+            (yearN == yy-1 & monthN >= 11) | ...
+            (yearN == yy   & monthN <= 10));  % Nov-Dec => next year's growing season
+        HhNYc = sum(HhNc(idxNY)) / sum(HsNc(idxNY));
+        HdNYc = sum(HdNc(idxNY)) / sum(HsNc(idxNY));
+
+        b    = 0.7;
+        tblE = table( yearFAO, YieldAnom, HhEYc, HdEYc, HhEYc+b*HdEYc, 'VariableNames',...
+            { 'Year','Yield','Heat','Dry','HeatDry' } );
+        tblN = table( yearPred,           HhNYc, HdNYc, HhNYc+b*HdNYc, 'VariableNames',...
+            { 'Year',        'Heat','Dry','HeatDry' } );
+        mdl           = fitlm(  tblE,'Yield ~ HeatDry')
+        YieldAnomPred = predict(mdl,tblN);
+
+        fprintf('\n2027 %s Yield (anomaly): %.1f (%s)\n',crop,YieldAnomPred,c_name)
+
+        figure(j_figno), nexttile
+        plot([tblE.Year(end) ; tblN.Year],[tblE.Yield(end) ; YieldAnomPred],'ro-'), hold on
+        plot([tblE.Year                 ],[tblE.Yield                     ],'b-' ), hold off
+        %   xline([1965,1972,1982,1986,1991,1997,2009,2014,2023],'r-')
+        title(c_name)
+
+        %% 2D plots
+        figure(j_figno-100), nexttile
+        x     = HhEYc; y = HdEYc; z = YieldAnom;
+        valid = isfinite(x) & isfinite(y) & isfinite(z);
+        x = x(valid); y = y(valid); z = z(valid);
+        if sum(valid)==0, continue, end
+
+        xg = linspace(min(x), max(x), 80);
+        yg = linspace(min(y), max(y), 80);
+        [Xg,Yg] = meshgrid(xg,yg);
+        % Interpolate scattered annual points
+        Zg = griddata(x,y,z,Xg,Yg,'natural');
+
+        contourf(Xg,Yg,Zg,15,'LineColor','none')
+        colorbar, hold on
+        scatter(x,y,45,z,'filled','MarkerEdgeColor','k'), hold off
+        xlabel('Heat exposure'), ylabel('Dry exposure')
+        title(c_name)
+    end
+    title(tl,  crop)
+    title(tl2D,crop)
+
+end
+keyboard, return
+
+%% PLOTS
+% YIELD, ENSO [ENSO IS DIFFICULT TO GET, BUT IS POSSIBLE WITH MORE EFFORT - LOOKS SEVERE]
+% fileENSO = 'external_global_drivers.csv';
+% opts     = detectImportOptions(fileENSO);
+% opts     = setvartype(opts,'quarter','string'); 
+% tblENSO  = readtable(fileENSO,opts);
+% tblENSO.quarter = datetime(tblENSO.quarter, ...
+%     'InputFormat', 'MM/dd/yy', ...
+%     'Format', 'MM/dd/yyyy', ...
+%     'PivotYear', 1930);
+% idx      = year(tblENSO.quarter)>=yearFAO(1);
+% 
+% fig = figure(990); fig.Name = 'Yield, ENSO';
+% subplot(2,1,1), plot([tblE.Year ; tblN.Year],[tblE.Yield ; YieldAnomPred],'o-')
+% xlim([1960 2030])
+% subplot(2,1,2), plot(tblENSO.quarter(idx),tblENSO.ENSO(idx))
+% xlim([datetime(1960,1,1) datetime(2030,1,1)])
+
+%  MAPS
+flag_plot_matrix = 0;
+if flag_plot_matrix
+    fig = figure(998); clf, plotmatrix([YieldAnom HhEYc HdEYc HhEYc.*HdEYc])
+end
+
+x     = HhEYc; y = HdEYc; z = YieldAnom;
+valid = isfinite(x) & isfinite(y) & isfinite(z);
+x = x(valid); y = y(valid); z = z(valid);
+
+xg = linspace(min(x), max(x), 80);
+yg = linspace(min(y), max(y), 80);
+[Xg,Yg] = meshgrid(xg,yg);
+% Interpolate scattered annual points
+Zg = griddata(x,y,z,Xg,Yg,'natural');
+
+fig = figure(996); clf
+contourf(Xg,Yg,Zg,15,'LineColor','none')
+colorbar, hold on
+scatter(x,y,45,z,'filled','MarkerEdgeColor','k'), hold off
+xlabel('Heat exposure'), ylabel('Dry exposure')
+title('Brazil maize yield anomaly over heat/dry exposure space')
+
+%% 3. Quick maps
+k0          = 4;                               % Aug 2026
+[LonN,LatN] = meshgrid(lonN,latN);             % (lat,lon) = (181,360)
+ExpD        = HdN(:,:,k0); ExpH = HhN(:,:,k0);
+fprintf('\n- %s\n',datesN(k0))
+
+f_map(7012,'Maize',     'Maize harvested area',HN( :,:,k0)',0,LatN,LonN,countries)
+f_map(7013,'Temp',      'Temperature anomaly', t2N(:,:,k0), 0,LatN,LonN,countries)
+f_map(7014,'Heat*Maize','Heat * Maize',        ExpH, 0,LatN,LonN,countries)
+f_map(7015,'Dry*Maize', 'Dry * Maize',         ExpD, 0,LatN,LonN,countries)
+
+%% WORLD COUNTRIES MAP
+latlim = [-35  10];       % S-N (Brazil)
+lonlim = [-75 -35] + 360; % W-E
+
+f_map(7010,'Global t2', 'Temperature Anomaly',t2N(:,:,k0),1,LatN,LonN,countries)
+f_map(7011,'Map Brazil','Temperature Anomaly',t2N(:,:,k0),1,LatN,LonN,countries,latlim,lonlim)
+
+keyboard, return
+
+%% CHECK MAPS
+[LonN,LatN] = meshgrid(lonN,latN);             % (lat,lon) = (181,360)
+k0          = 1; 
+f_map(7999,'Check','Check',prN(:,:,1  ), 1,LatN,LonN,countries) % add latlim,lonlim for country
+f_map(7997,'Check','Check',prN(:,:,3  ), 1,LatN,LonN,countries) % add latlim,lonlim for country
+f_map(7998,'Check','Check',prE(:,:,end), 1,LatN,LonN,countries) % add latlim,lonlim for country
+f_map(7999,'Check','Check',HN(:,:,k0)',1,LatN,LonN,countries) % add latlim,lonlim for country
+f_map(7999,'Check','Check',c_mask'*1,  1,LatN,LonN,countries) % add latlim,lonlim for country
+
+monstr  = string(num2str(monthN));
+nL      = numel(LatN);
+vs      = ["lat";"lon";monstr];
+L       = [LatN(:) LonN(:)];
+writetable(array2table([L reshape(prN(:),nL,12)],'VariableNames',vs),'precipitation_NMME.csv')
+writetable(array2table([L reshape(t2N(:),nL,12)],'VariableNames',vs),'temp_NMME.csv')
+
+
+end
+
+
+function [ HhNc,HdNc,HsNc ] = f_weight_c(HhN,HdN,HsN,nN,c_mask)
+
+HhNc   = zeros(1,nN); HdNc = HhNc; HsNc = HhNc;
+
+for kN = 1:nN                                              % for each forecast month
+    HhNc(kN) = sum(HhN(:,:,kN).*c_mask','all','omitnan'); % get exposure of cropland for
+    HdNc(kN) = sum(HdN(:,:,kN).*c_mask','all','omitnan'); %   one country
+    HsNc(kN) = sum(HsN(:,:,kN).*c_mask','all','omitnan');
+end
+
+end
+
+
+function [ HhN,HdN,HsN ] = f_weight_H(t2N,prN,HN,nN,datesN)
+
+HhN = zeros(size(t2N)); HdN = HhN; HsN = HhN;
+
+for kN=1:nN                                           % for each forecast month
+    m  = month(datesN(kN));                           % calendar month
+    Hk = HN(:,:,m);                                   % HM = harvested area fraction
+%   fprintf('- %s month %i\n',datesN(kN),m)
+
+    dN      = max(0,-prN(:,:,kN));                    % negative moisture    = dryness
+    hN      = max(0, t2N(:,:,kN));                    % positive temperature = heat
+
+    HhN(:,:,kN) = Hk' .* hN;                        % exposure of cropland to heat
+    HdN(:,:,kN) = Hk' .* dN;                        %                         dryness
+    HsN(:,:,kN) = Hk';
+end
+
+end
+
+
+function [ prE,t2E,yearE,monthE,datesE,ntE ] = read_ERA5(lonN,latN,flag_load)
+
+mat_name = sprintf('era5_1961_2026.mat');
+
+if flag_load
+    %% FILE CONVERSIONS ALREADY DONE IN TERMINAL AND SAVED USING THESE COMMANDS
+    %    unar 'Monthly Growing Area Grids.rar'
+    %    cdo -f nc copy era5_1961_2026.grib era5_1961_2026.nc
+    file_E  = 'era5_1961_2026.nc';         % netcdf file
+    info_E  = ncinfo(file_E);              % information
+    disp({info_E.Variables.Name}')
+    % units = ncreadatt(file_E,'time','units');
+    % disp(units)
+    timeE   = ncread(file_E,'time');       % time (units are in hours starting Jan 1, 1961)
+    lonE    = ncread(file_E,'lon');
+    latE    = ncread(file_E,'lat');
+    t2EK0   = ncread(file_E,'var167');     % temp, K (1440,721,785) = (lon,lat,t)
+    prEm0   = ncread(file_E,'var228');     % wate, m, total precipitation
+    t2E0    = t2EK0 - 273.15;              % convert temp to C
+    prE0    = prEm0 * 1000;                % convert precipitation to mm
+    clear t2EK0 prEm0
+
+    ntE     = size(t2E0,3);                % number of time intervals (number of months, 1961-2026)
+    datesE  = datetime(1961,1,1,0,0,0) + hours(double(timeE)); % convert time to dates
+    % disp(datesE(1:12)), disp(datesE(end))
+    yearE   = year( datesE);               % convert to year:  1961 1961 1961 ... 2026
+    monthE  = month(datesE);               % convert to month: 1:12 1:12 1:12 ... 1:5
+
+    %% GET ANOMALIES OF ERA5 DATA
+    t2clim  = nan(size(t2E0,1), size(t2E0,2), 12);
+    prclim  = nan(size(prE0, 1),size(prE0,2), 12);
+    t2E     = nan(length(lonN),length(latN),ntE); prE = t2E;
+
+    for m = 1:12                           % for 12 months, get the climate for that month
+        idx           = month(datesE)==m & year(datesE)>=1991 & year(datesE)<=2020;
+        t2clim(:,:,m) = mean(t2E0(:,:,idx),3,'omitnan'); % climate = mean over many years
+        prclim(:,:,m) = mean(prE0(:,:,idx),3,'omitnan'); %           at the same month
+    end
+
+    for k = 1:ntE                                  % for each time (month) k, get the anomalies
+        m       = month(datesE(k));                % calendar month m
+        t2E_Ek  = t2E0(:,:,k) - t2clim(:,:,m);     % data for month k - climate (mean) for month m
+        prE_Ek  = prE0(:,:,k) - prclim(:,:,m);
+
+        t2E(:,:,k) = regrid_ERA5_to_NMME(t2E_Ek, lonE, latE, lonN, latN); % use NMME grid
+        prE(:,:,k) = regrid_ERA5_to_NMME(prE_Ek,  lonE, latE, lonN, latN);
+    end
+
+    clear t2E0 prE0
+    t2E = permute(t2E,[2 1 3]); % (lon,lat,ntE)
+    prE = permute(prE,[2 1 3]);
+
+    save(mat_name,'prE','t2E','datesE','yearE','monthE','ntE','-v7.3')
+else
+    load(mat_name)
+end
+
+end
+
+
+function [ T_FAO,yearFAO,YieldAnom,nFAO,AreaHarvest ] = read_FAO(c_name,crop)
+
+% Can't download Yield, Area, Prod in one file
+warnID      = 'MATLAB:table:ModifiedAndSavedVarnames';
+warning('off',warnID)
+T_FAO_all_c = readtable('FAOSTAT_data_en_7-5-2026_yield.csv');   % FAO table
+T_FAO_c     = T_FAO_all_c(startsWith(T_FAO_all_c.Area,c_name),:);
+T_FAO       = T_FAO_c(    startsWith(T_FAO_c.Item,    crop  ),:);% (sometimes none)
+Yield       = T_FAO(strcmp(T_FAO.Element,'Yield'),:);            % Yield
+YieldTrend  = smoothdata(Yield.Value,'sgolay');                  % Get the yield trend
+YieldAnom   = 100*(Yield.Value-YieldTrend)./YieldTrend;          % yield anomaly (%)
+yearFAO     = Yield.Year;                                        % 1961:2024
+nFAO        = numel(yearFAO);                                    % number of FAO years
+
+flag_plot_FAO = 0;
+if flag_plot_FAO
+    AreaHarvest = T_FAO(strcmp(T_FAO.Element,'Area harvested'),:);   %   rows with harvest area
+    Production  = T_FAO(strcmp(T_FAO.Element,'Production'),:);       %             production
+
+    figure(999),  clf
+    subplot(311), plot(Yield.Year,Yield.Value),             ylabel('kg/ha'), title('Yield')
+    subplot(312), plot(AreaHarvest.Year,AreaHarvest.Value), ylabel('ha'),    title('Harvest Area')
+    subtitle(c_name)
+    subplot(313), plot(Production.Year,Production.Value),   ylabel('tonnes'),title('Prodution')
+end
+
+end
+
+
+function Vn = regrid_ERA5_to_NMME(V, lonE, latE, lonN, latN)
+
+% V  : ERA5 field, lon x lat
+% Vn : NMME field, lonN x latN
+
+V = double(V);
+lonE = double(lonE(:));
+latE = double(latE(:));
+lonN = double(lonN(:));
+latN = double(latN(:));
+
+% Convert ERA5 lon to 0..360
+lonE(lonE < 0) = lonE(lonE < 0) + 360;
+
+% Sort longitude and latitude ascending
+[lonE, ixLon] = sort(lonE);
+[latE, ixLat] = sort(latE);
+
+V = V(ixLon, ixLat);
+
+% Add periodic wraparound longitude
+lonE2 = [lonE; lonE(1)+360];
+V2 = [V; V(1,:)];
+
+% Interpolant expects ascending coordinates
+F = griddedInterpolant({lonE2, latE}, V2, 'linear', 'nearest');
+
+lonN2 = lonN;
+lonN2(lonN2 < 0) = lonN2(lonN2 < 0) + 360;
+
+[LonN, LatN] = ndgrid(lonN2, latN);
+
+Vn = F(LonN, LatN);
+
+end
+
+
+function mask = country_mask_NMME(S, countryName, lonN, latN)
+
+names = {S.NAME};
+i     = find(startsWith(names,countryName),1);
+
+if isempty(i)
+    error('Country not found: %s', countryName);
+end
+
+% For polygon masking, convert longitudes to -180..180.
+lonPlot = lonN;
+lonPlot(lonPlot > 180) = lonPlot(lonPlot > 180) - 360;
+
+[Lon,Lat] = ndgrid(lonPlot,latN);
+
+lonPoly = S(i).Lon;
+latPoly = S(i).Lat;
+
+mask = false(size(Lon));
+
+% One country may have multiple polygon parts separated by NaN
+nanBreaks = [0 find(isnan(lonPoly)) numel(lonPoly)+1];
+
+for b = 1:numel(nanBreaks)-1
+    idx = (nanBreaks(b)+1):(nanBreaks(b+1)-1);
+    if numel(idx) > 2
+        mask = mask | inpolygon(Lon,Lat,lonPoly(idx),latPoly(idx));
+    end
+end
+
+end
+
+
+function f_map(figno,figname,ttl,X,flag_world,LatN,LonN,countries,latlim,lonlim)
+
+%% SIMPLE MAP
+latN = LatN(:,1); lonN = LonN(1,:)';
+
+if ~flag_world
+    fig = figure(figno); fig.Name = figname; clf
+    imagesc(lonN,latN,X)
+    axis xy, colorbar, xlabel('Longitude'), ylabel('Latitude'), title(ttl)
+    return
+end
+
+%% SPATIAL SUBSET
+try
+    [lat_idx,lon_idx] = deal(find(latN>=latlim(1) & latN<=latlim(2)),...
+        find(lonN>=lonlim(1) & lonN<=lonlim(2)));
+    X_sub             = X(lat_idx,lon_idx);
+    lat_sub           = latN(lat_idx);
+    lon_sub           = lonN(lon_idx);
+    [Lon_sub,Lat_sub] = meshgrid(lon_sub,lat_sub);
+
+    fig = figure(figno); fig.Name = 'Map Brazil'; clf
+    axesm('mercator','MapLatLimit',latlim,'MapLonLimit',lonlim), framem on, gridm on, tightmap
+    geoshow(Lat_sub,Lon_sub,X_sub,'DisplayType','texturemap')
+    demcmap(X_sub), hold on
+    geoshow(countries,'FaceColor','none','EdgeColor',[0.3 0.3 0.3]*3.3,'LineWidth',1.5)
+    title(ttl), colorbar, hold off
+catch
+    fig = figure(figno); fig.Name = figname; clf
+    axesm robinson, framem on, gridm on, tightmap
+    geoshow(LatN,LonN,X,'DisplayType','texturemap')
+    demcmap(X), hold on
+    geoshow(countries,'FaceColor','none','EdgeColor',[0.3 0.3 0.3]*3.3,'LineWidth',1.0)
+    title(ttl), colorbar, hold off
+end
+
+end
+
+
+function [ prN,t2N,lonN,latN,yearN,monthN,datesN,nN ] = read_NMME(yr_mo,flag_save)
+
+file_mat = sprintf('NMME.%i.ENSMEAN.anom.mat',yr_mo);
+
+if flag_save
+    filePr   = sprintf('NMME.prate.%i.ENSMEAN.anom.nc',yr_mo);
+    fileT2   = sprintf('NMME.tmp2m.%i.ENSMEAN.anom.nc',yr_mo);
+
+    infoPr = ncinfo(filePr)                 % mm/s
+    infoT2 = ncinfo(fileT2)
+
+    lonN   = ncread(filePr,'lon');          % 360 [ 0  1 ... 359]
+    latN   = ncread(filePr,'lat');          % 181 [90 89 ... -90]
+    i_time = ncread(filePr,'initial_time'); %   1
+    target = ncread(filePr,'target');       %  12
+
+    datesN      = datetime(1960,1,1) + calmonths(double(target)-1);
+
+    prN0_mms = ncread(filePr,'fcst');       % likely lon x lat x target (mm/s)
+    t2N0     = ncread(fileT2,'fcst');
+    prN_mms  = permute(prN0_mms,[2 1 3]);
+    t2N      = permute(t2N0,    [2 1 3]);
+
+    prN = zeros(size(prN_mms));
+
+    for m=1:12                              % for each calendar month
+        ndays        = eomday(2026,m);      % number of days in the month
+        prN(:,:,m) = prN_mms(:,:,m) .* ndays * 86400;
+    end
+    nN      = numel(datesN);                % number of forecast months (12)
+    yearN   = year( datesN);
+    monthN  = month(datesN);
+
+    save(file_mat,'prN','t2N','lonN','latN','yearN','monthN','datesN','nN')
+else
+    load(file_mat)
+end
+
+end
+
+
+function [ HN,lonM,latM ] = read_MIRCA(crop_in,lonN,latN,flag_save)
+
+%  csv file (netcd has more information)
+%  fileM_csv = 'MIRCA-OS_2020_rf_v2.csv';
+%  T_M_csv   = readtable(fileM_csv);
+
+%  netcd file
+mat_name = sprintf('MIRCA_MonthlyGrowingArea_%s.mat',crop_in);
+
+if flag_save
+    if ismember(crop_in,{'Maize'})
+        crops = crop_in;
+    elseif strcmp(crop_in,'Soya')
+        crops = 'Soybeans';
+    elseif strcmp(crop_in,'Rice')
+        crops = {'Rice1','Rice2','Rice3'};
+    elseif strcmp(crop_in,'Wheat')
+        crops = {'Wheat1','Wheat2'};
+    end
+    crops = string(crops)
+
+    for i_crop = 1:numel(crops)
+        crop   = crops(i_crop);
+        fileM  = sprintf('MIRCA-OS_%s_2020_rf.nc',crop);
+        infoM  = ncinfo(fileM)
+
+        lonM   = ncread(fileM,'longitude');
+        latM   = ncread(fileM,'latitude');
+        HM0    = ncread(fileM,'harvested_area');
+        HNA    = zeros(length(lonN), length(latN), 12);
+
+        if i_crop==1, HN = HNA; end                           % initialize HN for summing
+
+        for m = 1:12
+            HNA(:,:,m) = aggregate_to_NMME_grid( HM0(:,:,m), lonM, latM, lonN, latN);
+        end
+
+        Area_ha      = f_areas(latN, lonN);                   % fraction of total grid-cell area
+        HNi          = HNA ./ Area_ha;                        % normalize so HM = 1 => 100% cropland
+        HNi(HNi < 0) = 0; HNi(HNi > 1) = 1;                   % optional cap
+        HN           = HN + HNi;
+    end
+    save(mat_name,'HN','lonN','latN')
+else
+    load(mat_name)
+end
+
+%% 1. Read CROPGRIDS maize harvested area [replaced by MIRCA]
+% fileCrop = 'CROPGRIDSv1.08_maize.nc';
+% lonH = ncread(fileCrop,'lon');
+% latH = ncread(fileCrop,'lat');
+% H    = ncread(fileCrop,'harvarea');   % ha per 0.05-degree grid cell
+% H    = double(H);
+% H(H < 0)   = NaN;                     % in case missing values are coded negative
+% Hn0        = aggregate_to_NMME_grid(H, lonH, latH, lonN, latN);
+% Hn         = Hn0 ./ Area_ha;
+% Hn(Hn < 0) = 0;
+% Hn(Hn > 1) = 1;                       % optional cap
+% save maize_harvested_area_NMMEgrid.mat Hn lonN latN
+
+%% 2. Aggregate to 1-degree grid
+% % CROPGRIDS is 0.05 degree, so 20 cells = 1 degree
+% block = 20;
+% % Make sure dimensions are multiples of 20
+% nx = floor(size(H,1)/block)*block;
+% ny = floor(size(H,2)/block)*block;
+% Hc = H(1:nx,1:ny);
+% H1 = squeeze(sum(reshape(Hc,block,nx/block,block,ny/block),[1 3],'omitnan'));
+% % 1-degree lon/lat centers
+% lon1 = mean(reshape(lonH(1:nx),block,nx/block),1);
+% lat1 = mean(reshape(latH(1:ny),block,ny/block),1);
+% 
+% fig = figure(7013); fig.Name = 'Maize (simple coords)'; clf
+% imagesc(lon1,lat1,H1')
+% axis xy, colorbar
+% title('Maize harvested area, aggregated to 1 degree')
+% xlabel('Longitude'), ylabel('Latitude')
+
+end
+
+
+function Area_ha = f_areas(latN, lonN)
+
+R = 6371;          % Earth radius, km
+dlat = 1;          % degrees
+dlon = 1;          % degrees
+
+lat = double(latN(:));   % NMME lat centers, e.g. 90:-1:-90
+
+lat1 = max(lat - dlat/2, -90);
+lat2 = min(lat + dlat/2,  90);
+
+% area of each 1-degree latitude band by longitude cell
+cellArea_km2 = R^2 * deg2rad(dlon) .* ...
+    (sind(lat2) - sind(lat1));
+
+cellArea_ha_lat = cellArea_km2 * 100;  % 1 km2 = 100 ha
+
+% expand to lon x lat grid
+Area_ha = repmat(cellArea_ha_lat', length(lonN), 1);
+
+end
+
+
+function Hn = aggregate_to_NMME_grid(H, lonH, latH, lonN, latN)
+
+    H = double(H);
+    lonH = double(lonH(:));
+    latH = double(latH(:));
+    lonN = double(lonN(:));
+    latN = double(latN(:));
+
+    H(~isfinite(H)) = 0;
+    H(H < 0) = 0;
+
+    % Convert high-res longitude to 0..360
+    lonH360 = lonH;
+    lonH360(lonH360 < 0) = lonH360(lonH360 < 0) + 360;
+
+    % Sort high-res grid
+    [lonH360, ixLon] = sort(lonH360);
+    [latHasc, ixLat] = sort(latH);
+
+    H = H(ixLon, ixLat);
+
+    % NMME latitude ascending internally
+    [latNasc, ixNlat] = sort(latN);
+
+    nlonN = numel(lonN);
+    nlatN = numel(latN);
+
+    Hn_ascLat = zeros(nlonN, nlatN);
+
+    % Longitude bins: NMME lon j covers [lonN(j)-0.5, lonN(j)+0.5)
+    for i = 1:nlonN
+        lo = lonN(i) - 0.5;
+        hi = lonN(i) + 0.5;
+
+        if lo < 0
+            ix = lonH360 >= (lo + 360) | lonH360 < hi;
+        elseif hi > 360
+            ix = lonH360 >= lo | lonH360 < (hi - 360);
+        else
+            ix = lonH360 >= lo & lonH360 < hi;
+        end
+
+        if ~any(ix), continue; end
+
+        for j = 1:nlatN
+            la = latNasc(j);
+            loLat = max(la - 0.5, -90);
+            hiLat = min(la + 0.5,  90);
+
+            iy = latHasc >= loLat & latHasc < hiLat;
+
+            if any(iy)
+                Hn_ascLat(i,j) = sum(H(ix,iy),'all','omitnan');
+            end
+        end
+    end
+
+    % Return latitude in original NMME order
+    Hn = zeros(nlonN,nlatN);
+    Hn(:,ixNlat) = Hn_ascLat;
+end
+
+
+function edges = centers_to_edges_periodic(c, period)
+% Construct edges for periodic coordinate centers, e.g. longitude.
+
+    c = c(:);
+    dc = median(diff(c));
+
+    edges = [c - dc/2; c(end) + dc/2];
+
+    % For 0..359 centers, edges become -0.5..359.5.
+    % Shift to 0..360 convention for discretize.
+    edges(1) = 0;
+    edges(end) = period;
+end
+
+
+function edges = centers_to_edges_nonperiodic(c)
+
+% Construct edges for non-periodic coordinate centers, e.g. latitude.
+c = c(:);
+dc = median(diff(c));
+
+edges = [c - dc/2; c(end) + dc/2];
+
+% Clip latitude edges to physical range
+edges(1) = max(edges(1), -90);
+edges(end) = min(edges(end), 90);
+
+end
+
+
+%% NOTES
+% import cdsapi
+% 
+% dataset = "reanalysis-era5-single-levels-monthly-means"
+% request = {
+%     "product_type": ["monthly_averaged_reanalysis"],
+%     "variable": [
+%         "2m_temperature",
+%         "total_precipitation"
+%     ],
+%     "year": [
+%         "1961", "1962", "1963",
+%         "1964", "1965", "1966",
+%         "1967", "1968", "1969",
+%         "1970", "1971", "1972",
+%         "1973", "1974", "1975",
+%         "1976", "1977", "1978",
+%         "1979", "1980", "1981",
+%         "1982", "1983", "1984",
+%         "1985", "1986", "1987",
+%         "1988", "1989", "1990",
+%         "1991", "1992", "1993",
+%         "1994", "1995", "1996",
+%         "1997", "1998", "1999",
+%         "2000", "2001", "2002",
+%         "2003", "2004", "2005",
+%         "2006", "2007", "2008",
+%         "2009", "2010", "2011",
+%         "2012", "2013", "2014",
+%         "2015", "2016", "2017",
+%         "2018", "2019", "2020",
+%         "2021", "2022", "2023",
+%         "2024", "2025", "2026"
+%     ],
+%     "month": [
+%         "01", "02", "03",
+%         "04", "05", "06",
+%         "07", "08", "09",
+%         "10", "11", "12"
+%     ],
+%     "time": ["00:00"],
+%     "data_format": "grib",
+%     "download_format": "unarchived"
+% }
+% 
+% client = cdsapi.Client()
+% client.retrieve(dataset, request).download()

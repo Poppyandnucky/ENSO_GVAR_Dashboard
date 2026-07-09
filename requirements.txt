@@ -29,5 +29,7 @@ xarray
 geopandas
 regionmask
 streamlit
+pydeck
 plotly
 country-converter
+torch>=2.0
