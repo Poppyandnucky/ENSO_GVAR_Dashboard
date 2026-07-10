@@ -9,7 +9,13 @@ Inputs are raw files downloaded outside the repo:
 The script preserves the existing panel schema. It writes:
   - analysis/Dash_Output/egypt_quarterly_yoy.csv
   - analysis/Dash_Output/egypt_panel_preprocessing_summary.csv
-  - analysis/gvar_panel_streamlit (7 + EGY).csv
+  - analysis/gvar_panel_streamlit (8 + EGY).csv
+
+This output is an intermediate stage: the dashboard's actual input panel is
+`analysis/gvar_panel_streamlit (8 + EGY + PER).csv`, which appends Peru rows
+(carried over from the legacy `gvar_panel_streamlit (7 + EGY).csv`, since
+dataset (8) has no Peru-specific raw sources to rebuild from) on top of this
+script's output.
 """
 
 from __future__ import annotations
@@ -21,8 +27,8 @@ import pandas as pd
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PANEL_IN = ROOT / "analysis" / "gvar_panel_streamlit (7).csv"
-PANEL_OUT = ROOT / "analysis" / "gvar_panel_streamlit (7 + EGY).csv"
+PANEL_IN = ROOT / "analysis" / "gvar_panel_streamlit (8).csv"
+PANEL_OUT = ROOT / "analysis" / "gvar_panel_streamlit (8 + EGY).csv"
 OUT_DIR = ROOT / "analysis" / "Dash_Output"
 
 FX_DAILY_XLSX = Path("/Users/poppy/Downloads/FX_daily.xlsx")

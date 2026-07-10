@@ -926,7 +926,7 @@ def run_block_q_scaler_diagnostics(
 
 if __name__ == "__main__":
     SCRIPT_DIR = Path(__file__).resolve().parent
-    PATH = SCRIPT_DIR / "gvar_panel_streamlit (7 + EGY).csv"
+    PATH = SCRIPT_DIR / "gvar_panel_streamlit (8 + EGY + PER).csv"
     COUNTRIES = [
         "BRA",
         "CHL",

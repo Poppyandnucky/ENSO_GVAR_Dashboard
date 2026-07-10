@@ -728,7 +728,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # ---------- Dashboard run configuration ----------
-PATH = str(Path(__file__).resolve().parent.parent / "analysis" / "gvar_panel_streamlit (7 + EGY).csv")
+PATH = str(Path(__file__).resolve().parent.parent / "analysis" / "gvar_panel_streamlit (8 + EGY + PER).csv")
 COUNTRIES = [
     "BRA",
     "CHL",

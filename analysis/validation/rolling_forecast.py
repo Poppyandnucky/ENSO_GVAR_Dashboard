@@ -17,7 +17,7 @@ from pathlib import Path
 from statsmodels.tsa.api import VAR
 
 def load_panel():
-    panel_path = Path(__file__).resolve().parents[1] / "gvar_panel_streamlit (7 + EGY).csv"
+    panel_path = Path(__file__).resolve().parents[1] / "gvar_panel_streamlit (8 + EGY + PER).csv"
     return pd.read_csv(
         panel_path,
         parse_dates=["quarter"]
