@@ -606,7 +606,14 @@ def _hex_to_rgba(hex_color, alpha):
     return f"rgba({r}, {g}, {b}, {alpha})"
 
 
-def _forecast_country_frame(scenarios, panel_df, country, response_var, history_start=FORECAST_HISTORY_START):
+def _forecast_country_frame(
+    scenarios,
+    panel_df,
+    country,
+    response_var,
+    history_start=FORECAST_HISTORY_START,
+    include_observed_overlap=False,
+):
     frames = []
     hist = panel_df[
         (panel_df["country"].astype(str) == country)
@@ -627,9 +634,28 @@ def _forecast_country_frame(scenarios, panel_df, country, response_var, history_
                     "value": pd.to_numeric(hist[response_var], errors="coerce").to_numpy(),
                     "no_enso_value": np.nan,
                     "impact_vs_no_enso": np.nan,
+                    "actual_value": np.nan,
                 }
             )
         )
+
+    # Lookup of real observed values by quarter, used only to annotate forecast/nowcast
+    # rows for comparison (see include_observed_overlap below); does not affect what
+    # counts as "Actual history" above.
+    actual_lookup = {}
+    if response_var in panel_df.columns:
+        actual_rows = panel_df[panel_df["country"].astype(str) == country][
+            ["quarter", response_var]
+        ].copy()
+        actual_rows["quarter"] = pd.to_datetime(actual_rows["quarter"], errors="coerce")
+        actual_rows = actual_rows.dropna(subset=["quarter"])
+        actual_lookup = dict(
+            zip(
+                actual_rows["quarter"].dt.to_period("Q").dt.to_timestamp(),
+                pd.to_numeric(actual_rows[response_var], errors="coerce"),
+            )
+        )
+
     for scenario_name, scenario_bundle in scenarios.items():
         d = scenario_bundle.get("per_country", {}).get(country)
         if not d or response_var not in d.get("ENDO_use", []):
@@ -638,7 +664,15 @@ def _forecast_country_frame(scenarios, panel_df, country, response_var, history_
         q = pd.to_datetime(d["fc_quarters"])
         if not hist.empty:
             last_actual_q = pd.Timestamp(hist["quarter"].max()).to_period("Q").to_timestamp()
-            keep = q.to_period("Q").to_timestamp() > last_actual_q
+            cutoff = last_actual_q
+            if include_observed_overlap and d.get("hist_last_quarter") is not None:
+                # Model-internal cutoff (all domestic vars jointly complete) is never
+                # later than last_actual_q, so this only ever pulls the cutoff earlier,
+                # exposing forecast/nowcast quarters that already have real data for
+                # response_var specifically.
+                model_hist_q = pd.Timestamp(d["hist_last_quarter"]).to_period("Q").to_timestamp()
+                cutoff = min(cutoff, model_hist_q)
+            keep = q.to_period("Q").to_timestamp() > cutoff
         else:
             keep = np.ones(len(q), dtype=bool)
         if not np.any(keep):
@@ -659,6 +693,10 @@ def _forecast_country_frame(scenarios, panel_df, country, response_var, history_
         base = None
         if d.get("y_hat_enso0") is not None:
             base = _to_raw_y(d, d["y_hat_enso0"], panel_df, country)[:, idx][keep]
+        actual_value = np.array(
+            [actual_lookup.get(pd.Timestamp(x).to_period("Q").to_timestamp(), np.nan) for x in q],
+            dtype=float,
+        )
         frames.append(
             pd.DataFrame(
                 {
@@ -671,16 +709,31 @@ def _forecast_country_frame(scenarios, panel_df, country, response_var, history_
                     "upper": y_upper if y_upper is not None else np.nan,
                     "no_enso_value": base if base is not None else np.nan,
                     "impact_vs_no_enso": y - base if base is not None else np.nan,
+                    "actual_value": actual_value,
                 }
             )
         )
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-def build_forecast_plot_df(forecast_bundle, panel_df, countries, response_var, history_start=FORECAST_HISTORY_START):
+def build_forecast_plot_df(
+    forecast_bundle,
+    panel_df,
+    countries,
+    response_var,
+    history_start=FORECAST_HISTORY_START,
+    include_observed_overlap=False,
+):
     scenarios = _forecast_scenarios(forecast_bundle)
     frames = [
-        _forecast_country_frame(scenarios, panel_df, c, response_var, history_start=history_start)
+        _forecast_country_frame(
+            scenarios,
+            panel_df,
+            c,
+            response_var,
+            history_start=history_start,
+            include_observed_overlap=include_observed_overlap,
+        )
         for c in countries
     ]
     frames = [f for f in frames if not f.empty]
@@ -906,6 +959,28 @@ def plot_selected_country_forecast(plot_df, response_var, country_label):
                     ),
                 )
             )
+
+        if "actual_value" in fc.columns:
+            actual = (
+                fc.pivot_table(index="quarter", columns="scenario", values="actual_value", aggfunc="mean")
+                .sort_index()
+                .mean(axis=1)
+                .dropna()
+            )
+            if not actual.empty:
+                fig.add_trace(
+                    go.Scatter(
+                        x=actual.index,
+                        y=actual,
+                        mode="markers",
+                        name="Actual observed (comparison)",
+                        marker=dict(color="#2ca02c", size=11, symbol="diamond", line=dict(color="white", width=1)),
+                        hovertemplate=(
+                            "Actual observed"
+                            f"<br>%{{x|%Y-Q%q}}<br>{response_var}: %{{y:.2f}}<extra></extra>"
+                        ),
+                    )
+                )
 
     fig.update_layout(
         title=f"{country_label}: {response_var} under forecasted ENSO vs no-ENSO counterfactual",
@@ -1912,12 +1987,25 @@ with tab_scenario:
         st_subheader("Core forecast")
         st.info("No forecast bundle is available for the online ENSO forecast chart.")
     else:
+        show_actual_overlap = st.checkbox(
+            "Compare forecast vs. actual for already-observed quarters",
+            value=False,
+            help=(
+                "Some near-term quarters are treated as forecast/nowcast because another "
+                "model variable was still incomplete when the model was run, even though "
+                "new actual data for the selected response variable has since become "
+                "available. Enabling this shows those quarters' model forecast alongside "
+                "the real observed value, for comparison."
+            ),
+            key="scenario_show_actual_overlap",
+        )
         selected_df = build_forecast_plot_df(
             forecast_pack["bundle"],
             panel,
             [country],
             response_var,
             history_start=None,
+            include_observed_overlap=show_actual_overlap,
         )
         q_summary, c_summary = summarize_forecast_ranges(selected_df)
 
@@ -1942,6 +2030,12 @@ with tab_scenario:
                 "values set to 0, so the gap from the forecasted ENSO scenario indicates the "
                 "model-implied macroeconomic impact of ENSO."
             )
+            if show_actual_overlap:
+                st.caption(
+                    "Green diamonds: the real observed value for quarters now shown as "
+                    "forecast/nowcast, so you can compare the model's estimate against what "
+                    "actually happened once that data became available."
+                )
 
         if not q_summary.empty:
             st_subheader("Projected GDP growth and ENSO impacts relative to a no-ENSO baseline")
