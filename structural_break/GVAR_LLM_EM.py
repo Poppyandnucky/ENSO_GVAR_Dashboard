@@ -304,633 +304,19 @@ def varx_rolling_predict(Y: np.ndarray,
     rmse = np.sqrt(np.nanmean(e_raw**2, axis=1))
     return Y_pred, e_raw, rmse
 
-def init_from_varx_rolling(
-    Y: np.ndarray,
-    Z: np.ndarray,
-    lags: int = 2,
-    window: int = 40,
-    ridge: float = 1e-6,
-    eps: float = 1e-8,
-):
-    """
-    Run rolling VARX (fixed window) on the full sample to initialize:
-    theta0 (Beta0), Q0, R0, P0.
-    Note: this is an initialization step only (no burn-in trimming here).
-    """
-    n, mY = Y.shape
-    mX = Z.shape[1]
-    m = lags * mY + mX
-    p = m * mY
-
-    theta_hist = []
-    resid_hist = []
-
-    for t in range(lags + 1, n):
-        s0 = max(lags + 1, t - window)
-        T = t - s0
-        if T <= 0:
-            continue
-
-        X_train = np.zeros((T, m))
-        Y_train = np.zeros((T, mY))
-        for k, s in enumerate(range(s0, t)):
-            regY = np.concatenate([Y[s - i, :] for i in range(1, lags + 1)], axis=0)
-            X_train[k, :] = np.concatenate([regY, Z[s - 1, :]], axis=0)
-            Y_train[k, :] = Y[s, :]
-
-        A = X_train.T @ X_train + ridge * np.eye(m)
-        B = X_train.T @ Y_train
-        coef = np.linalg.solve(A, B)  # (m, mY)
-
-        theta_t = coef.T.reshape(-1, order='C')  # (p,)
-        theta_hist.append(theta_t)
-
-        x_t = np.concatenate([
-            np.concatenate([Y[t - i, :] for i in range(1, lags + 1)], axis=0),
-            Z[t - 1, :],
-        ])
-        y_hat_t = x_t @ coef
-        resid_hist.append(Y[t, :] - y_hat_t)
-
-    if len(theta_hist) == 0:
-        theta0 = np.zeros((p, 1))
-        Q0 = 1e-4 * np.eye(p)
-        R0 = np.diag(np.var(Y, axis=0) + 1e-6)
-        P0 = 1.0 * np.eye(p)
-        return theta0, Q0, R0, P0, m, p
-
-    theta_hist = np.asarray(theta_hist)
-    resid_hist = np.asarray(resid_hist)
-
-    theta0 = theta_hist[-1].reshape(-1, 1)
-
-    if theta_hist.shape[0] >= 2:
-        dtheta = np.diff(theta_hist, axis=0)
-        Q0 = np.cov(dtheta, rowvar=False)
-        alpha = 0.01  # tuning range is usually around 0.1~0.3
-        Q0_full = np.cov(dtheta, rowvar=False)
-        Q0 = np.diag(np.diag(Q0_full))
-        Q0 = alpha * Q0
-        if Q0.ndim == 0:
-            Q0 = np.array([[float(Q0)]])
-    else:
-        Q0 = 1e-4 * np.eye(p)
-
-    if resid_hist.shape[0] >= 2:
-        R0 = 0.1*np.cov(resid_hist, rowvar=False)
-        if R0.ndim == 0:
-            R0 = np.array([[float(R0)]])
-    else:
-        R0 = np.diag(np.var(Y, axis=0) + 1e-6)
-
-    if theta_hist.shape[0] >= 2:
-        P0 = np.cov(theta_hist, rowvar=False)
-        if P0.ndim == 0:
-            P0 = np.array([[float(P0)]])
-    else:
-        P0 = 10.0 * np.eye(p)
-
-    Q0 = 0.5 * (Q0 + Q0.T) + eps * np.eye(p)
-    R0 = 0.5 * (R0 + R0.T) + eps * np.eye(mY)
-    P0 = 0.5 * (P0 + P0.T) + eps * np.eye(p)
-
-    return theta0, Q0, R0, P0, m, p
-
-
-# ---------- TVP-VECM Kalman ----------
-def kalman_multilag_filter_vecm(
-    Y: np.ndarray,                    # ΔY
-    Z_all: np.ndarray,                # ΔZ
-    Y_level_aligned: np.ndarray,      # levels aligned with ΔY (i.e. original level[1:])
-    Q0: np.ndarray,
-    R0: np.ndarray,
-    P0: np.ndarray,
-    theta0: np.ndarray | None = None, # (p, 1) initial coefficients
-    dropout0: np.ndarray | None = None,  # dropout mask
-    lags: int = 2,
-    eps: float = 1e-8,
-    Q_R_update = False
-):
-
-    global GLOBAL_QR_CACHE
-    Q_hist = []
-    R_hist = []
-    n, mY = Y.shape
-    mX = Z_all.shape[1] if Z_all is not None and Z_all.size > 0 else 0
-
-    m = lags * mY + mX 
-    p = m * mY
-
-    # Initialization
-    theta = theta0.copy() if theta0 is not None else np.zeros((p, 1))
-    P = P0.copy()
-    R = R0.copy()
-    Q = Q0.copy()
-
-    # Dropout mask handling
-    if dropout0 is not None:
-        dropout_exp = 3
-        d0 = np.asarray(dropout0).ravel()[:p]
-        idx_dropout = d0 < 1.0
-        if np.any(idx_dropout):
-            scale = np.maximum(d0[idx_dropout], 1e-3) ** dropout_exp
-            P[np.ix_(idx_dropout, idx_dropout)] *= scale[:, None] * scale[None, :]
-            Q[np.ix_(idx_dropout, idx_dropout)] *= scale[:, None] * scale[None, :]
-
-    # Storage
-    theta_est = np.zeros((n, p))
-    Y_pred = np.full((n, mY), np.nan)
-    P_hist = np.zeros((p, p, n))
-    e_raw = np.full((n, mY), np.nan)
-    Q_trace = np.full((n,), np.nan)
-    R_trace = np.full((n,), np.nan)
-
-    I_p = np.eye(p)
-
-    rho_R = 0.02
-    rho_Q = 0.02
-
-    # Kalman filter loop
-    for t in range(lags + 1, n):
-        # Build X_t: [ΔY_{t-1}..ΔY_{t-lags}, ΔZ_{t-1}, ECT_{t-1}]
-        pieces = []
-        for i in range(1, lags + 1):
-            pieces.append(Y[t - i, :])
-        if mX > 0:
-            pieces.append(Z_all[t - 1, :])
-        X_t = np.concatenate(pieces)  # (m,)
-
-        # Build H_t equation by equation
-        H_t = np.zeros((mY, p))
-        for j in range(mY):
-            idx = slice(j * m, (j + 1) * m)
-            H_t[j, idx] = X_t
-
-        # Standard Kalman filter steps
-        # Predict
-        theta_pred = theta
-        P_pred = P + Q
-
-        # Innovation covariance
-        S = H_t @ P_pred @ H_t.T + R
-        S = (S + S.T) / 2
-        S += eps * np.eye(mY)
-
-        # Kalman gain
-        try:
-            S_inv = np.linalg.inv(S)
-        except np.linalg.LinAlgError:
-            S_inv = np.linalg.pinv(S)
-        K = P_pred @ H_t.T @ S_inv
-
-        # Update
-        y_t = Y[t, :].reshape(-1, 1)
-        y_hat = H_t @ theta_pred
-        innovation = y_t - y_hat
-
-        theta = theta_pred + K @ innovation
-        P = (I_p - K @ H_t) @ P_pred
-        P = (P + P.T) / 2
-        P += eps * np.eye(p)
-
-        # Save
-        theta_est[t, :] = theta.ravel()
-        Y_pred[t, :] = y_hat.ravel()
-        P_hist[:, :, t] = P
-        e_raw[t, :] = innovation.ravel()
-
-        # Record Q/R trace (for diagnostics/visualization)
-        Q_trace[t] = np.trace(Q)
-        R_trace[t] = np.trace(R)
-
-        if Q_R_update == True:
-            # Compute updated R_t
-            R_new = (1.0 - rho_R) * R + rho_R * (innovation @ innovation.T)
-            # Prevent excessive R blow-up
-            if np.trace(R_new) > 5 * np.trace(R0):
-                R_new = 5 * np.trace(R0) / np.trace(R_new) * R_new
-            R = 0.5 * (R_new + R_new.T) + eps * np.eye(mY)
-
-            # Global scaling for Q
-            err2 = float(innovation.T @ innovation) / mY
-            tr_Q = np.trace(Q)
-            if tr_Q > eps and err2 > 0:
-                scale = err2 / tr_Q
-                Q = (1.0 - rho_Q) * Q + rho_Q * scale * Q
-        
-    # Compute error
-    valid = ~np.isnan(e_raw).any(axis=1)
-    if np.any(valid):
-        rmse = np.sqrt(np.nanmean(e_raw[valid] ** 2))
-    else:
-        rmse = np.nan
-
-    return rmse, e_raw, theta_est, Y_pred, P_hist, Q_trace, R_trace
-
-# ---------- E-step: KF filter with full storage ----------
-def kf_e_step_store(
-    Y: np.ndarray,
-    Z_all: np.ndarray,
-    theta0: np.ndarray,
-    Q: np.ndarray,
-    R: np.ndarray,
-    P0: np.ndarray,
-    lags: int = 2,
-    eps: float = 1e-8,
-):
-    """
-      theta_filt, P_filt, theta_pred, P_pred, H_list, y_list, valid_mask
-    """
-    n, mY = Y.shape
-    mX = Z_all.shape[1] if Z_all is not None and Z_all.size > 0 else 0
-    m = lags * mY + mX
-    p = m * mY
-
-    theta = theta0.copy().reshape(p, 1)
-    P = P0.copy()
-    I_p = np.eye(p)
-
-    theta_filt = np.full((n, p), np.nan)
-    P_filt = np.zeros((n, p, p))
-    theta_pred = np.full((n, p), np.nan)
-    P_pred = np.zeros((n, p, p))
-    H_list = [None] * n
-    y_list = [None] * n
-    valid_mask = np.zeros(n, dtype=bool)
-
-    for t in range(lags + 1, n):
-        # build regressor
-        pieces = [Y[t - i, :] for i in range(1, lags + 1)]
-        if mX > 0:
-            pieces.append(Z_all[t - 1, :])
-        X_t = np.concatenate(pieces)
-
-        H_t = np.zeros((mY, p))
-        for j in range(mY):
-            idx = slice(j * m, (j + 1) * m)
-            H_t[j, idx] = X_t
-
-        # predict
-        theta_pr = theta
-        P_pr = P + Q
-
-        # update
-        y_t = Y[t, :].reshape(-1, 1)
-        S = H_t @ P_pr @ H_t.T + R
-        S = 0.5 * (S + S.T) + eps * np.eye(mY)
-        try:
-            S_inv = np.linalg.inv(S)
-        except np.linalg.LinAlgError:
-            S_inv = np.linalg.pinv(S)
-        K = P_pr @ H_t.T @ S_inv
-
-        innovation = y_t - H_t @ theta_pr
-        theta = theta_pr + K @ innovation
-        P = (I_p - K @ H_t) @ P_pr
-        P = 0.5 * (P + P.T) + eps * np.eye(p)
-
-        # store
-        theta_pred[t, :] = theta_pr.ravel()
-        P_pred[t, :, :] = P_pr
-        theta_filt[t, :] = theta.ravel()
-        P_filt[t, :, :] = P
-        H_list[t] = H_t
-        y_list[t] = y_t
-        valid_mask[t] = True
-
-    return theta_filt, P_filt, theta_pred, P_pred, H_list, y_list, valid_mask
-
-
-# ---------- RTS smoother ----------
-def rts_smoother(
-    theta_filt: np.ndarray,
-    P_filt: np.ndarray,
-    theta_pred: np.ndarray,
-    P_pred: np.ndarray,
-    valid_mask: np.ndarray,
-    eps: float = 1e-8,
-):
-    """
-    RTS smoother for random-walk state model (theta_t = theta_{t-1} + w_t).
-    Returns: theta_smooth, P_smooth, J_hist
-    """
-    n, p = theta_filt.shape
-    theta_smooth = theta_filt.copy()
-    P_smooth = P_filt.copy()
-    J_hist = np.zeros((n, p, p))
-
-    valid_idx = np.where(valid_mask)[0]
-    if len(valid_idx) <= 1:
-        return theta_smooth, P_smooth, J_hist
-
-    for k in range(len(valid_idx) - 2, -1, -1):
-        t = valid_idx[k]
-        t1 = valid_idx[k + 1]
-
-        P_f = P_filt[t]
-        P_pr_next = P_pred[t1]
-        try:
-            inv_Ppr = np.linalg.inv(P_pr_next)
-        except np.linalg.LinAlgError:
-            inv_Ppr = np.linalg.pinv(P_pr_next)
-
-        J_t = P_f @ inv_Ppr
-        J_hist[t] = J_t
-
-        x_f = theta_filt[t].reshape(-1, 1)
-        x_pr_next = theta_pred[t1].reshape(-1, 1)
-        x_sm_next = theta_smooth[t1].reshape(-1, 1)
-
-        x_sm = x_f + J_t @ (x_sm_next - x_pr_next)
-        P_sm = P_f + J_t @ (P_smooth[t1] - P_pr_next) @ J_t.T
-        P_sm = 0.5 * (P_sm + P_sm.T) + eps * np.eye(p)
-
-        theta_smooth[t, :] = x_sm.ravel()
-        P_smooth[t] = P_sm
-
-    return theta_smooth, P_smooth, J_hist
-
-
-def compute_kf_smoother_diagnostics(
-    R: np.ndarray,
-    pack: dict,
-    eps: float = 1e-8,
-):
-    """
-    Compute diagnostics over time t using final EM E-step + RTS outputs:
-    - innovation_score[t] = v_t' S_t^{-1} v_t, where v_t = y_t - H_t theta_{t|t-1},
-      and S_t = H_t P_{t|t-1} H_t' + R
-    - coefficient_change[t] = ||beta_smooth,t - beta_smooth,t-1||
-    - filter_smoother_gap[t] = ||beta_smooth,t - beta_filt,t||
-    Output length matches theta_filt rows; invalid entries are NaN.
-    """
-    theta_filt = pack["theta_filt"]
-    n, _ = theta_filt.shape
-    mY = R.shape[0]
-
-    innovation_score = np.full(n, np.nan)
-    coefficient_change = np.full(n, np.nan)
-    filter_smoother_gap = np.full(n, np.nan)
-
-    theta_smooth = pack["theta_smooth"]
-    theta_pred = pack["theta_pred"]
-    P_pred = pack["P_pred"]
-    H_list = pack["H_list"]
-    y_list = pack["y_list"]
-    valid_mask = pack["valid_mask"]
-
-    valid_idx = np.where(valid_mask)[0]
-
-    for t in valid_idx:
-        H_t = H_list[t]
-        y_t = y_list[t]
-        if H_t is None or y_t is None:
-            continue
-
-        theta_pr = theta_pred[t].reshape(-1, 1)
-        P_pr = P_pred[t]
-        v = y_t - H_t @ theta_pr
-        S = H_t @ P_pr @ H_t.T + R
-        S = 0.5 * (S + S.T) + eps * np.eye(mY)
-        try:
-            S_inv = np.linalg.inv(S)
-        except np.linalg.LinAlgError:
-            S_inv = np.linalg.pinv(S)
-        innovation_score[t] = float((v.T @ S_inv @ v).item())
-
-        xf = theta_filt[t]
-        xs = theta_smooth[t]
-        filter_smoother_gap[t] = float(np.linalg.norm(xs - xf))
-
-    for k in range(1, len(valid_idx)):
-        t = valid_idx[k]
-        t0 = valid_idx[k - 1]
-        coefficient_change[t] = float(
-            np.linalg.norm(theta_smooth[t] - theta_smooth[t0])
-        )
-
-    return innovation_score, coefficient_change, filter_smoother_gap
-
-
-# ---------- M-step ----------
-def em_m_step_update(
-    Y: np.ndarray,
-    H_list: list,
-    y_list: list,
-    valid_mask: np.ndarray,
-    theta_smooth: np.ndarray,
-    P_smooth: np.ndarray,
-    J_hist: np.ndarray,
-    Q_old: np.ndarray,
-    R_old: np.ndarray,
-    em_damping: float = 0.0,
-    eps: float = 1e-8,
-):
-    """
-    Update Q and R using smoother outputs.
-    EM moments used here:
-      R <- sample mean of E[(y-Hx)(y-Hx)' + HPH']
-      Q <- sample mean of E[(x_t-x_{t-1})(x_t-x_{t-1})']
-           using the RTS lag-one smoothed covariance.
-    """
-    n, p = theta_smooth.shape
-    mY = Y.shape[1]
-
-    # update R
-    R_acc = np.zeros((mY, mY))
-    cntR = 0
-    for t in np.where(valid_mask)[0]:
-        H_t = H_list[t]
-        y_t = y_list[t]
-        if H_t is None or y_t is None:
-            continue
-        x_t = theta_smooth[t].reshape(-1, 1)
-        resid = y_t - H_t @ x_t
-        R_t = resid @ resid.T + H_t @ P_smooth[t] @ H_t.T
-        R_acc += R_t
-        cntR += 1
-    if cntR > 0:
-        R_new = R_acc / cntR
-    else:
-        R_new = R_old.copy()
-
-    # update Q
-    valid_idx = np.where(valid_mask)[0]
-    Q_acc = np.zeros((p, p))
-    cntQ = 0
-
-    for k in range(1, len(valid_idx)):
-        t = valid_idx[k]
-        t0 = valid_idx[k - 1]
-
-        x_t = theta_smooth[t]
-        x_prev = theta_smooth[t0]
-
-        d = (x_t - x_prev).reshape(-1, 1)
-        P_t_t0 = P_smooth[t] @ J_hist[t0].T
-        Q_t = d @ d.T + P_smooth[t] + P_smooth[t0] - P_t_t0 - P_t_t0.T
-        Q_acc += Q_t
-        cntQ += 1
-
-    if cntQ > 0:
-        Q_new = Q_acc / cntQ
-    else:
-        Q_new = Q_old.copy()
-
-    Q = em_damping * Q_old + (1.0 - em_damping) * Q_new
-    Q = 0.5 * (Q + Q.T) + eps * np.eye(p)
-
-    # damping + stabilize
-    R = em_damping * R_old + (1.0 - em_damping) * R_new
-
-    R = 0.5 * (R + R.T) + eps * np.eye(mY)
-
-    return Q, R
-
-
-# ---------- EM runner (VAR init + E/M iterations) ----------
-def run_kf_em(
-    Y: np.ndarray,
-    Z: np.ndarray,
-    lags: int = 2,
-    window: int = 40,
-    ridge: float = 1e-6,
-    max_em_iter: int = 10,
-    tol: float = 1e-4,
-    em_damping: float = 0.0,
-    eps: float = 1e-8,
-    verbose: bool = True,
-):
-
-    # first init from rolling VARX
-    theta0, Q, R, P0, m, p = init_from_varx_rolling(
-        Y=Y, Z=Z, lags=lags, window=window, ridge=ridge, eps=eps
-    )
-
-    history = {
-        "trace_Q": [],
-        "trace_R": [],
-        "theta0_norm": [],
-    }
-
-    last_obj = np.inf
-    best_pack = None
-
-    for it in range(max_em_iter):
-        # E-step
-        theta_filt, P_filt, theta_pred, P_pred, H_list, y_list, valid_mask = kf_e_step_store(
-            Y=Y, Z_all=Z, theta0=theta0, Q=Q, R=R, P0=P0, lags=lags, eps=eps
-        )
-
-        # smoother
-        theta_smooth, P_smooth, J_hist = rts_smoother(
-            theta_filt, P_filt, theta_pred, P_pred, valid_mask, eps=eps
-        )
-
-        # M-step
-        Q_new, R_new = em_m_step_update(
-            Y=Y,
-            H_list=H_list,
-            y_list=y_list,
-            valid_mask=valid_mask,
-            theta_smooth=theta_smooth,
-            P_smooth=P_smooth,
-            J_hist=J_hist,
-            Q_old=Q,
-            R_old=R,
-            em_damping=em_damping,
-            eps=eps,
-        )
-
-        # update theta0 with latest smoothed state
-        valid_idx = np.where(valid_mask)[0]
-        if len(valid_idx) > 0:
-            theta0 = theta_smooth[valid_idx[0]].reshape(-1, 1)
-
-        Q, R = Q_new, R_new
-
-        # a simple objective proxy (smoothed one-step residual)
-        obj = 0.0
-        cnt = 0
-        for t in valid_idx:
-            H_t = H_list[t]
-            y_t = y_list[t]
-            if H_t is None or y_t is None:
-                continue
-            e = y_t - H_t @ theta_smooth[t].reshape(-1, 1)
-            obj += float((e.T @ e).item())
-            cnt += 1
-        obj = obj / max(cnt, 1)
-
-        history["trace_Q"].append(float(np.trace(Q)))
-        history["trace_R"].append(float(np.trace(R)))
-        history["theta0_norm"].append(float(np.linalg.norm(theta0)))
-
-        if verbose:
-            print(f"[EM] iter={it+1:02d}, obj={obj:.6f}, trQ={np.trace(Q):.6e}, trR={np.trace(R):.6e}")
-
-        best_pack = {
-            "theta_filt": theta_filt,
-            "P_filt": P_filt,
-            "theta_pred": theta_pred,
-            "P_pred": P_pred,
-            "theta_smooth": theta_smooth,
-            "P_smooth": P_smooth,
-            "J_hist": J_hist,
-            "valid_mask": valid_mask,
-            "H_list": H_list,
-            "y_list": y_list,
-        }
-
-        if abs(last_obj - obj) < tol:
-            if verbose:
-                print(f"[EM] converged at iter={it+1}, |Δobj|={abs(last_obj-obj):.3e}")
-            break
-        last_obj = obj
-
-    # final forward KF run (reuse your original output format)
-    rmse, e_raw, theta_est, Y_pred, P_hist, Q_trace, R_trace = kalman_multilag_filter_vecm(
-        Y=Y,
-        Z_all=Z,
-        Y_level_aligned=np.zeros_like(Y),  # level is unused in this KF variant (placeholder)
-        Q0=Q,
-        R0=R,
-        P0=P0,
-        theta0=theta0,
-        lags=lags,
-        eps=eps,
-        Q_R_update=False,
-    )
-
-    n_y = Y.shape[0]
-    innov_score = np.full(n_y, np.nan)
-    coef_change = np.full(n_y, np.nan)
-    fs_gap = np.full(n_y, np.nan)
-    if best_pack is not None:
-        innov_score, coef_change, fs_gap = compute_kf_smoother_diagnostics(
-            R=R, pack=best_pack, eps=eps
-        )
-
-    return {
-        "rmse": rmse,
-        "e_raw": e_raw,
-        "theta_est": theta_est,              # filtered trajectory (original output)
-        "Y_pred": Y_pred,
-        "P_hist": P_hist,
-        "Q_trace": Q_trace,
-        "R_trace": R_trace,
-        "theta0": theta0,
-        "Q": Q,
-        "R": R,
-        "P0": P0,
-        "m": m,
-        "p": p,
-        "em_history": history,
-        "e_step_store": best_pack,           # E-step + smoother trajectories (incl. coefficients)
-        "innovation_score": innov_score,
-        "coefficient_change": coef_change,
-        "filter_smoother_gap": fs_gap,
-    }
+import sys
+_KC_ROOT = Path(__file__).resolve().parent.parent
+if str(_KC_ROOT) not in sys.path:
+    sys.path.insert(0, str(_KC_ROOT))
+from trp.kalman_core import (
+    init_from_varx_rolling,
+    kalman_multilag_filter,
+    kf_e_step_store,
+    rts_smoother,
+    compute_kf_smoother_diagnostics,
+    em_m_step_update,
+    run_kf_em,
+)
 
 # ============================================
 #              FUNCTION 1
@@ -1075,16 +461,15 @@ def run_tvpkf(
         P0 = 10.0 * np.eye(p)
 
     # round 2: Kalman main run
-    rmse, e_raw, theta_est, Y_pred, P_hist, Q_trace, R_trace = kalman_multilag_filter_vecm(
+    rmse, e_raw, theta_est, Y_pred, P_hist, Q_trace, R_trace = kalman_multilag_filter(
         Y=Yd,
         Z_all=Xd,
-        Y_level_aligned=Y_level_aligned,
         Q0=Q0,
         R0=R0,
         P0=P0,
         theta0=theta0,
         lags=lags,
-        Q_R_update=False,
+        covariance_mode="fixed",
     )
 
     return {
@@ -1316,8 +701,8 @@ def plot_dropone_heatmap(
             dropout0 = np.ones((p,))
             dropout0[idx_0] = 0.0
             
-            rmse_d, *_ = kalman_multilag_filter_vecm(
-                Y=Yd, Z_all=Xd, Y_level_aligned=Y_level_aligned,
+            rmse_d, *_ = kalman_multilag_filter(
+                Y=Yd, Z_all=Xd,
                 Q0=Q0, R0=R0, P0=P0,
                 theta0=theta0,
                 dropout0=dropout0,
@@ -1558,7 +943,7 @@ import matplotlib.pyplot as plt
 from matplotlib import gridspec
 
 # ---------- Fill these two places ----------
-PATH = "gvar_panel_streamlit (3).csv"          # or .xlsx, change path as needed
+PATH = "gvar_panel_streamlit (8 + EGY + PER).csv"          # or .xlsx, change path as needed
 COUNTRIES = [
 "CHL","MEX","BRA","COL", "AUS", "CAN","NOR","PHL","IND", "THA","IDN", "SWE", "CHE", "NZL",  "DNK"
 # "AFG", "ALB", "DZA", "AND", "AGO", "ATG", "ARG", "ARM", "AUS", "AUT",
@@ -1686,7 +1071,7 @@ def _fig_save_or_show(fig, pdf: PdfPages | None) -> None:
 COL_COUNTRY = "country"
 COL_TIME = "quarter"
 ENDO = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
-EXO = ["COMMODITY_YoY", "ENSO"]
+EXO = ["ENSO", "OIL_YoY"]
 
 lags = 1
 
@@ -1749,7 +1134,7 @@ def panel_y_yhat_heatmap(
     if ENDO is None:
         ENDO = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
     if EXO is None:
-        EXO = ["COMMODITY_YoY", "ENSO"]
+        EXO = ["ENSO", "OIL_YoY"]
     if min_T is None:
         min_T = lags + 5
 
@@ -1998,7 +1383,7 @@ def plot_coeff_trajectories_countries_em(
     if ENDO is None:
         ENDO = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
     if EXO is None:
-        EXO = ["COMMODITY_YoY", "ENSO"]
+        EXO = ["ENSO", "OIL_YoY"]
     if min_T is None:
         min_T = lags + 5
 
@@ -2159,7 +1544,7 @@ def plot_em_diagnostics_countries(
     if ENDO is None:
         ENDO = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
     if EXO is None:
-        EXO = ["COMMODITY_YoY", "ENSO"]
+        EXO = ["ENSO", "OIL_YoY"]
     if min_T is None:
         min_T = lags + 5
 
@@ -2263,7 +1648,7 @@ def plot_em_qr_traces_countries(
     if ENDO is None:
         ENDO = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
     if EXO is None:
-        EXO = ["COMMODITY_YoY", "ENSO"]
+        EXO = ["ENSO", "OIL_YoY"]
     if min_T is None:
         min_T = lags + 5
 
@@ -2412,7 +1797,7 @@ def build_em_break_score_panel(
     if ENDO is None:
         ENDO = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
     if EXO is None:
-        EXO = ["COMMODITY_YoY", "ENSO"]
+        EXO = ["ENSO", "OIL_YoY"]
     if min_T is None:
         min_T = lags + 5
 

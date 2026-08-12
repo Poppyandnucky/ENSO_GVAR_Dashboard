@@ -1,1 +1,8 @@
 models/output/Geo_Lat/population/*.tif
+
+__pycache__/
+*.pyc
+.DS_Store
+~
+analysis/Dash_Output/kf_em_diagnostics/
+analysis/Dash_Output/**/*.png

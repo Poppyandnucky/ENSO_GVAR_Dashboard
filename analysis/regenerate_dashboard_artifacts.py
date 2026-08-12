@@ -8,6 +8,7 @@ Run from anywhere:
     python analysis/regenerate_dashboard_artifacts.py
 
 Outputs refreshed:
+  - analysis/gvar_panel_streamlit (8 + EGY + PER).csv exogenous merges
   - Dash_Input/gvar_pipeline_results.pkl
   - structural_break/gvar_pipeline_results.pkl
   - Dash_Input/GVAR_LLM_EM_plots.pdf and LLM summary files
@@ -79,6 +80,13 @@ def main() -> None:
 
     env = build_env()
 
+    run_step(
+        "Merge crop-climate and oil exogenous variables",
+        [str(PYTHON), "analysis/build_yield_climate_merge.py"],
+        cwd=ROOT,
+        env=env,
+    )
+
     if not args.skip_pipeline:
         env_pipeline = env.copy()
         env_pipeline["GVAR_IMPORT_ONLY"] = "0"
@@ -111,7 +119,7 @@ def main() -> None:
 
     if not args.skip_forecast:
         run_step(
-            "Generate ENSO and commodity history/forecast plots",
+            "Generate ENSO and oil history/forecast plots",
             [str(PYTHON), "analysis/plot_exogenous_series.py"],
             cwd=ROOT,
             env=env,

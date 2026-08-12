@@ -137,7 +137,7 @@ def init_from_varx_rolling(Y, Z, lags=1, window=40):
     return theta0, P0, Q, R
 
 
-def kalman_multilag_filter_vecm(Y, Z, theta0, Q, R, P0, lags=1):
+def kalman_multilag_filter(Y, Z, theta0, Q, R, P0, lags=1):
     n, mY = Y.shape
     mX = Z.shape[1]
     m = lags * mY + mX
@@ -320,7 +320,7 @@ def run_kf_em(Y, Z, lags=1, window=40, max_em_iter=8, tol=1e-4, em_damping=0.7, 
         Q = em_damping * Q + (1 - em_damping) * Q_new
         R = em_damping * R + (1 - em_damping) * R_new
 
-        theta_f, P_f, Y_pred, theta_pred, P_pred = kalman_multilag_filter_vecm(Y, Z, theta0, Q, R, P0, lags=lags)
+        theta_f, P_f, Y_pred, theta_pred, P_pred = kalman_multilag_filter(Y, Z, theta0, Q, R, P0, lags=lags)
         obj = np.nanmean((Y[lags + 1 :, :] - Y_pred[lags + 1 :, :]) ** 2)
         if obj < best_obj:
             best_obj = obj
@@ -573,7 +573,7 @@ def train_q_scaler_by_country(
     if endo is None:
         endo = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
     if exo is None:
-        exo = ["COMMODITY_YoY", "ENSO"]
+        exo = ["ENSO", "OIL_YoY"]
     if break_years_by_country is None:
         break_years_by_country = {}
 
@@ -638,7 +638,7 @@ def train_block_q_scaler_by_country(
     if endo is None:
         endo = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
     if exo is None:
-        exo = ["COMMODITY_YoY", "ENSO"]
+        exo = ["ENSO", "OIL_YoY"]
     if break_years_by_country is None:
         break_years_by_country = {}
 
@@ -942,7 +942,7 @@ if __name__ == "__main__":
         "EGY",
     ]
     ENDO = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
-    EXO = ["COMMODITY_YoY", "ENSO"]
+    EXO = ["ENSO", "OIL_YoY"]
 
     # Break-year signal source: all quarters in listed years are set to 1.
     BREAK_COUNTRIES = {

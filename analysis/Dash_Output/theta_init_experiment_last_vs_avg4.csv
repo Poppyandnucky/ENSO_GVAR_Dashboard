@@ -1,0 +1,62 @@
+country,quarter,period_type,GDP_last,GDP_avg4,diff
+BRA,2026-01-01,Gap fill / nowcast,-0.0417,-0.051,0.0092
+BRA,2026-04-01,Gap fill / nowcast,0.1469,0.1061,0.0408
+BRA,2026-07-01,Scenario forecast,0.298,0.237,0.061
+BRA,2026-10-01,Scenario forecast,0.1724,0.1113,0.0611
+BRA,2027-01-01,Scenario forecast,0.1078,0.0572,0.0505
+CHL,2026-01-01,Gap fill / nowcast,-0.1608,-0.149,-0.0118
+CHL,2026-04-01,Gap fill / nowcast,0.3014,0.2924,0.009
+CHL,2026-07-01,Scenario forecast,0.4458,0.4127,0.0331
+CHL,2026-10-01,Scenario forecast,-0.1406,-0.1593,0.0186
+CHL,2027-01-01,Scenario forecast,-0.8012,-0.7892,-0.012
+COL,2026-01-01,Gap fill / nowcast,0.189,0.1936,-0.0047
+COL,2026-04-01,Gap fill / nowcast,0.1959,0.1935,0.0024
+COL,2026-07-01,Scenario forecast,0.0939,0.1034,-0.0095
+COL,2026-10-01,Scenario forecast,-0.303,-0.2708,-0.0322
+COL,2027-01-01,Scenario forecast,-0.2897,-0.241,-0.0487
+MEX,2026-01-01,Gap fill / nowcast,-0.3309,-0.3247,-0.0062
+MEX,2026-04-01,Gap fill / nowcast,-0.1593,-0.1829,0.0236
+MEX,2026-07-01,Scenario forecast,-0.1129,-0.169,0.0561
+MEX,2026-10-01,Scenario forecast,-0.3768,-0.4155,0.0387
+MEX,2027-01-01,Scenario forecast,-0.3638,-0.3883,0.0245
+KEN,2025-10-01,Gap fill / nowcast,0.1638,0.183,-0.0192
+KEN,2026-01-01,Gap fill / nowcast,0.0448,0.1131,-0.0683
+KEN,2026-04-01,Gap fill / nowcast,-0.3308,-0.3313,0.0005
+KEN,2026-07-01,Scenario forecast,-0.5029,-0.6958,0.1928
+KEN,2026-10-01,Scenario forecast,-0.1843,-0.5667,0.3824
+KEN,2027-01-01,Scenario forecast,-0.4116,-0.8969,0.4853
+ZAF,2026-01-01,Gap fill / nowcast,-0.1117,-0.1074,-0.0044
+ZAF,2026-04-01,Gap fill / nowcast,0.1862,0.1882,-0.002
+ZAF,2026-07-01,Scenario forecast,0.4755,0.4709,0.0046
+ZAF,2026-10-01,Scenario forecast,0.3504,0.3406,0.0098
+ZAF,2027-01-01,Scenario forecast,0.276,0.2629,0.013
+IND,2026-01-01,Gap fill / nowcast,0.0911,0.0684,0.0227
+IND,2026-04-01,Gap fill / nowcast,-0.0923,-0.118,0.0257
+IND,2026-07-01,Scenario forecast,-0.277,-0.2868,0.0098
+IND,2026-10-01,Scenario forecast,-0.3236,-0.3138,-0.0097
+IND,2027-01-01,Scenario forecast,-0.3419,-0.3204,-0.0215
+IDN,2026-01-01,Gap fill / nowcast,0.0243,0.003,0.0213
+IDN,2026-04-01,Gap fill / nowcast,-0.0669,-0.0773,0.0104
+IDN,2026-07-01,Scenario forecast,-0.2257,-0.2243,-0.0014
+IDN,2026-10-01,Scenario forecast,-0.4662,-0.4776,0.0115
+IDN,2027-01-01,Scenario forecast,-0.5499,-0.5634,0.0135
+THA,2026-01-01,Gap fill / nowcast,-0.1282,-0.2068,0.0786
+THA,2026-04-01,Gap fill / nowcast,-0.1459,-0.2878,0.1419
+THA,2026-07-01,Scenario forecast,-0.0963,-0.1707,0.0744
+THA,2026-10-01,Scenario forecast,-0.129,-0.0529,-0.0761
+THA,2027-01-01,Scenario forecast,0.0847,0.3173,-0.2326
+PER,2026-01-01,Gap fill / nowcast,0.1353,0.1225,0.0128
+PER,2026-04-01,Gap fill / nowcast,0.1028,0.0905,0.0123
+PER,2026-07-01,Scenario forecast,0.0841,0.0803,0.0037
+PER,2026-10-01,Scenario forecast,0.0251,0.0288,-0.0036
+PER,2027-01-01,Scenario forecast,0.206,0.2147,-0.0086
+PHL,2026-01-01,Gap fill / nowcast,-0.2006,-0.1896,-0.011
+PHL,2026-04-01,Gap fill / nowcast,-0.1675,-0.1597,-0.0078
+PHL,2026-07-01,Scenario forecast,-0.109,-0.108,-0.0011
+PHL,2026-10-01,Scenario forecast,-0.0843,-0.0856,0.0014
+PHL,2027-01-01,Scenario forecast,-0.0379,-0.0414,0.0035
+EGY,2026-01-01,Gap fill / nowcast,0.0785,-0.0493,0.1278
+EGY,2026-04-01,Gap fill / nowcast,0.179,0.1025,0.0766
+EGY,2026-07-01,Scenario forecast,0.434,0.3961,0.038
+EGY,2026-10-01,Scenario forecast,0.4821,0.4234,0.0587
+EGY,2027-01-01,Scenario forecast,0.4107,0.308,0.1028

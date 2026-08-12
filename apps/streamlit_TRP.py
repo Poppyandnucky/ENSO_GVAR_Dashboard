@@ -58,6 +58,11 @@ DASHBOARD_COUNTRIES = [
 ]
 MACRO_IMPACT_VARS = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
 FORECAST_HISTORY_START = pd.Timestamp("2024-07-01")
+FORECAST_COEFF_METHOD_OPTIONS = {
+    "last": "Last quarter",
+    "avg4": "4-quarter average",
+    "avg8": "8-quarter average",
+}
 
 HELP_TEXT = {
     "country": "Primary country used as the default selection across dashboard tabs.",
@@ -581,6 +586,66 @@ def _forecast_scenarios(bundle):
     return {}
 
 
+CLIMATE_TOGGLE_OPTIONS = {
+    "ENSO": "ENSO",
+    "IOD": "IOD",
+    "HeatDry": "Crop-weighted heat/dryness index",
+    "OIL_YoY": "Oil price YoY",
+}
+_CLIMATE_TOGGLE_ORDER = {v: i for i, v in enumerate(CLIMATE_TOGGLE_OPTIONS)}
+
+# Match CLIMATE_VARIANT_COMBOS in gvar_kf_forecast.py.
+CLIMATE_VARIANT_CHOICES = {
+    "ENSO": {"label": "ENSO only", "vars": ["ENSO"]},
+    "ENSO+OIL_YoY": {
+        "label": f"ENSO + {CLIMATE_TOGGLE_OPTIONS['OIL_YoY']}",
+        "vars": ["ENSO", "OIL_YoY"],
+    },
+    "ENSO+HeatDry": {
+        "label": f"ENSO + {CLIMATE_TOGGLE_OPTIONS['HeatDry']}",
+        "vars": ["ENSO", "HeatDry"],
+    },
+    "ENSO+HeatDry+OIL_YoY": {
+        "label": f"ENSO + {CLIMATE_TOGGLE_OPTIONS['HeatDry']} + {CLIMATE_TOGGLE_OPTIONS['OIL_YoY']}",
+        "vars": ["ENSO", "HeatDry", "OIL_YoY"],
+    },
+    "HeatDry+OIL_YoY": {
+        "label": f"{CLIMATE_TOGGLE_OPTIONS['OIL_YoY']} + {CLIMATE_TOGGLE_OPTIONS['HeatDry']}",
+        "vars": ["OIL_YoY", "HeatDry"],
+    },
+    "IOD": {"label": "IOD only", "vars": ["IOD"]},
+    "IOD+OIL_YoY": {
+        "label": f"IOD + {CLIMATE_TOGGLE_OPTIONS['OIL_YoY']}",
+        "vars": ["IOD", "OIL_YoY"],
+    },
+    "IOD+HeatDry": {
+        "label": f"IOD + {CLIMATE_TOGGLE_OPTIONS['HeatDry']}",
+        "vars": ["IOD", "HeatDry"],
+    },
+    "IOD+HeatDry+OIL_YoY": {
+        "label": f"IOD + {CLIMATE_TOGGLE_OPTIONS['HeatDry']} + {CLIMATE_TOGGLE_OPTIONS['OIL_YoY']}",
+        "vars": ["IOD", "HeatDry", "OIL_YoY"],
+    },
+}
+
+
+def _climate_variant_key(climate_vars_selected):
+    return "+".join(sorted(climate_vars_selected, key=lambda v: _CLIMATE_TOGGLE_ORDER.get(v, 99)))
+
+
+def _select_climate_variant_scenarios(bundle, climate_vars_selected):
+    """Pick the precomputed scenarios dict for the selected ENSO/heat/moisture
+    combination (see analysis/Dash_Output/gvar_kf_forecast.py:
+    run_forecast_all_climate_variants). Falls back to the default ENSO-only
+    scenarios if the pickle predates the climate-variant toggle or the exact
+    combination wasn't precomputed."""
+    key = _climate_variant_key(climate_vars_selected)
+    variants = bundle.get("climate_variants") if isinstance(bundle, dict) else None
+    if variants and key in variants:
+        return variants[key].get("scenarios", {})
+    return _forecast_scenarios(bundle)
+
+
 def _country_y_scale(country_pack, panel_df, country, endo_vars):
     mu = country_pack.get("y_mu")
     sd = country_pack.get("y_sd")
@@ -606,7 +671,15 @@ def _hex_to_rgba(hex_color, alpha):
     return f"rgba({r}, {g}, {b}, {alpha})"
 
 
-def _forecast_country_frame(scenarios, panel_df, country, response_var, history_start=FORECAST_HISTORY_START):
+def _forecast_country_frame(
+    scenarios,
+    panel_df,
+    country,
+    response_var,
+    history_start=FORECAST_HISTORY_START,
+    include_observed_overlap=False,
+    coeff_method="last",
+):
     frames = []
     hist = panel_df[
         (panel_df["country"].astype(str) == country)
@@ -627,18 +700,58 @@ def _forecast_country_frame(scenarios, panel_df, country, response_var, history_
                     "value": pd.to_numeric(hist[response_var], errors="coerce").to_numpy(),
                     "no_enso_value": np.nan,
                     "impact_vs_no_enso": np.nan,
+                    "no_iod_value": np.nan,
+                    "impact_vs_no_iod": np.nan,
+                    "no_heat_value": np.nan,
+                    "impact_vs_no_heat": np.nan,
+                    "heat0_var": None,
+                    "actual_value": np.nan,
+                    "coefficient_method": np.nan,
+                    "coefficient_method_available": np.nan,
                 }
             )
         )
+
+    # Lookup of real observed values by quarter, used only to annotate forecast/nowcast
+    # rows for comparison (see include_observed_overlap below); does not affect what
+    # counts as "Actual history" above.
+    actual_lookup = {}
+    if response_var in panel_df.columns:
+        actual_rows = panel_df[panel_df["country"].astype(str) == country][
+            ["quarter", response_var]
+        ].copy()
+        actual_rows["quarter"] = pd.to_datetime(actual_rows["quarter"], errors="coerce")
+        actual_rows = actual_rows.dropna(subset=["quarter"])
+        actual_lookup = dict(
+            zip(
+                actual_rows["quarter"].dt.to_period("Q").dt.to_timestamp(),
+                pd.to_numeric(actual_rows[response_var], errors="coerce"),
+            )
+        )
+
     for scenario_name, scenario_bundle in scenarios.items():
         d = scenario_bundle.get("per_country", {}).get(country)
         if not d or response_var not in d.get("ENDO_use", []):
             continue
+        method_pack = d.get("forecast_methods", {}).get(coeff_method)
+        method_available = coeff_method == "last" or isinstance(method_pack, dict)
+        if coeff_method != "last":
+            if not method_available:
+                continue
+            d = {**d, **method_pack}
         idx = list(d["ENDO_use"]).index(response_var)
         q = pd.to_datetime(d["fc_quarters"])
         if not hist.empty:
             last_actual_q = pd.Timestamp(hist["quarter"].max()).to_period("Q").to_timestamp()
-            keep = q.to_period("Q").to_timestamp() > last_actual_q
+            cutoff = last_actual_q
+            if include_observed_overlap and d.get("hist_last_quarter") is not None:
+                # Model-internal cutoff (all domestic vars jointly complete) is never
+                # later than last_actual_q, so this only ever pulls the cutoff earlier,
+                # exposing forecast/nowcast quarters that already have real data for
+                # response_var specifically.
+                model_hist_q = pd.Timestamp(d["hist_last_quarter"]).to_period("Q").to_timestamp()
+                cutoff = min(cutoff, model_hist_q)
+            keep = q.to_period("Q").to_timestamp() > cutoff
         else:
             keep = np.ones(len(q), dtype=bool)
         if not np.any(keep):
@@ -659,6 +772,17 @@ def _forecast_country_frame(scenarios, panel_df, country, response_var, history_
         base = None
         if d.get("y_hat_enso0") is not None:
             base = _to_raw_y(d, d["y_hat_enso0"], panel_df, country)[:, idx][keep]
+        iod_base = None
+        if d.get("y_hat_iod0") is not None:
+            iod_base = _to_raw_y(d, d["y_hat_iod0"], panel_df, country)[:, idx][keep]
+        heat_base = None
+        if d.get("y_hat_heat0") is not None:
+            heat_base = _to_raw_y(d, d["y_hat_heat0"], panel_df, country)[:, idx][keep]
+        heat0_var = d.get("heat0_var")
+        actual_value = np.array(
+            [actual_lookup.get(pd.Timestamp(x).to_period("Q").to_timestamp(), np.nan) for x in q],
+            dtype=float,
+        )
         frames.append(
             pd.DataFrame(
                 {
@@ -671,16 +795,40 @@ def _forecast_country_frame(scenarios, panel_df, country, response_var, history_
                     "upper": y_upper if y_upper is not None else np.nan,
                     "no_enso_value": base if base is not None else np.nan,
                     "impact_vs_no_enso": y - base if base is not None else np.nan,
+                    "no_iod_value": iod_base if iod_base is not None else np.nan,
+                    "impact_vs_no_iod": y - iod_base if iod_base is not None else np.nan,
+                    "no_heat_value": heat_base if heat_base is not None else np.nan,
+                    "impact_vs_no_heat": y - heat_base if heat_base is not None else np.nan,
+                    "heat0_var": heat0_var,
+                    "actual_value": actual_value,
+                    "coefficient_method": FORECAST_COEFF_METHOD_OPTIONS.get(coeff_method, "Last quarter"),
+                    "coefficient_method_available": bool(method_available),
                 }
             )
         )
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-def build_forecast_plot_df(forecast_bundle, panel_df, countries, response_var, history_start=FORECAST_HISTORY_START):
+def build_forecast_plot_df(
+    forecast_bundle,
+    panel_df,
+    countries,
+    response_var,
+    history_start=FORECAST_HISTORY_START,
+    include_observed_overlap=False,
+    coeff_method="last",
+):
     scenarios = _forecast_scenarios(forecast_bundle)
     frames = [
-        _forecast_country_frame(scenarios, panel_df, c, response_var, history_start=history_start)
+        _forecast_country_frame(
+            scenarios,
+            panel_df,
+            c,
+            response_var,
+            history_start=history_start,
+            include_observed_overlap=include_observed_overlap,
+            coeff_method=coeff_method,
+        )
         for c in countries
     ]
     frames = [f for f in frames if not f.empty]
@@ -701,6 +849,12 @@ def summarize_forecast_ranges(plot_df):
             impact_min=("impact_vs_no_enso", "min"),
             impact_mean=("impact_vs_no_enso", "mean"),
             impact_max=("impact_vs_no_enso", "max"),
+            impact_iod_min=("impact_vs_no_iod", "min"),
+            impact_iod_mean=("impact_vs_no_iod", "mean"),
+            impact_iod_max=("impact_vs_no_iod", "max"),
+            impact_heat_min=("impact_vs_no_heat", "min"),
+            impact_heat_mean=("impact_vs_no_heat", "mean"),
+            impact_heat_max=("impact_vs_no_heat", "max"),
             value_min=("value", "min"),
             value_mean=("value", "mean"),
             value_max=("value", "max"),
@@ -711,13 +865,22 @@ def summarize_forecast_ranges(plot_df):
     if scenario_df.empty:
         scenario_df = plot_df.copy()
     c_summary = (
-        scenario_df.groupby(["country", "scenario"], as_index=False)["impact_vs_no_enso"]
-        .sum()
+        scenario_df.groupby(
+            ["country", "scenario"],
+            as_index=False,
+        )[["impact_vs_no_enso", "impact_vs_no_iod", "impact_vs_no_heat"]]
+        .sum(min_count=1)
         .groupby("country", as_index=False)
         .agg(
             cumulative_min=("impact_vs_no_enso", "min"),
             cumulative_mean=("impact_vs_no_enso", "mean"),
             cumulative_max=("impact_vs_no_enso", "max"),
+            cumulative_iod_min=("impact_vs_no_iod", "min"),
+            cumulative_iod_mean=("impact_vs_no_iod", "mean"),
+            cumulative_iod_max=("impact_vs_no_iod", "max"),
+            cumulative_heat_min=("impact_vs_no_heat", "min"),
+            cumulative_heat_mean=("impact_vs_no_heat", "mean"),
+            cumulative_heat_max=("impact_vs_no_heat", "max"),
         )
     )
     return q_summary, c_summary
@@ -807,9 +970,30 @@ def plot_core_forecast(plot_df, response_var):
     return fig
 
 
-def plot_selected_country_forecast(plot_df, response_var, country_label):
+def plot_selected_country_forecast(plot_df, response_var, country_label, counterfactual="enso", heat_label=None):
+    """Draw one forecast path against the selected climate-driver counterfactual."""
     if plot_df.empty:
         return None
+    if counterfactual == "heat":
+        cf_col = "no_heat_value"
+        driver_label = heat_label or "climate driver"
+        cf_name = f"No-{driver_label} counterfactual"
+        cf_hover_note = f"Future {driver_label} held at its baseline"
+        main_line_name = "Forecasted scenario"
+        title = f"{country_label}: {response_var} under forecasted scenario vs no-{driver_label} counterfactual"
+    elif counterfactual == "iod":
+        cf_col = "no_iod_value"
+        cf_name = "No-IOD counterfactual (IOD index = 0)"
+        cf_hover_note = "Future IOD index set to 0"
+        main_line_name = "Forecasted IOD scenario"
+        title = f"{country_label}: {response_var} under forecasted IOD vs no-IOD counterfactual"
+    else:
+        cf_col = "no_enso_value"
+        cf_name = "No-ENSO counterfactual (ENSO index = 0)"
+        cf_hover_note = "Future ENSO index set to 0"
+        main_line_name = "Forecasted ENSO scenario"
+        title = f"{country_label}: {response_var} under forecasted ENSO vs no-ENSO counterfactual"
+
     fig = go.Figure()
     color = px.colors.qualitative.Plotly[0]
     hist = plot_df[plot_df["period_type"].eq("Actual history")].sort_values("quarter")
@@ -866,25 +1050,25 @@ def plot_selected_country_forecast(plot_df, response_var, country_label):
                 x=mean.index,
                 y=mean,
                 mode="lines+markers",
-                name="Forecasted ENSO scenario",
+                name=main_line_name,
                 line=dict(color=color, width=2),
                 marker=dict(color=color),
                 hovertemplate=f"Forecast<br>%{{x|%Y-Q%q}}<br>{response_var}: %{{y:.2f}}<extra></extra>",
             )
         )
 
-        no_enso = (
-            fc.pivot_table(index="quarter", columns="scenario", values="no_enso_value", aggfunc="mean")
+        no_cf = (
+            fc.pivot_table(index="quarter", columns="scenario", values=cf_col, aggfunc="mean")
             .sort_index()
             .mean(axis=1)
             .reindex(mean.index)
         )
-        if no_enso.notna().any():
-            if not hist.empty and no_enso.index[0] > hist["quarter"].iloc[-1]:
+        if no_cf.notna().any():
+            if not hist.empty and no_cf.index[0] > hist["quarter"].iloc[-1]:
                 fig.add_trace(
                     go.Scatter(
-                        x=[hist["quarter"].iloc[-1], no_enso.index[0]],
-                        y=[hist["value"].iloc[-1], no_enso.iloc[0]],
+                        x=[hist["quarter"].iloc[-1], no_cf.index[0]],
+                        y=[hist["value"].iloc[-1], no_cf.iloc[0]],
                         mode="lines",
                         line=dict(color="#111111", width=1.5, dash="dash"),
                         hoverinfo="skip",
@@ -893,22 +1077,44 @@ def plot_selected_country_forecast(plot_df, response_var, country_label):
                 )
             fig.add_trace(
                 go.Scatter(
-                    x=no_enso.index,
-                    y=no_enso,
+                    x=no_cf.index,
+                    y=no_cf,
                     mode="lines+markers",
-                    name="No-ENSO counterfactual (ENSO index = 0)",
+                    name=cf_name,
                     line=dict(color="#111111", width=2, dash="dash"),
                     marker=dict(color="#111111"),
                     hovertemplate=(
-                        "No-ENSO counterfactual"
-                        "<br>Future ENSO index set to 0"
+                        f"{cf_name}"
+                        f"<br>{cf_hover_note}"
                         f"<br>%{{x|%Y-Q%q}}<br>{response_var}: %{{y:.2f}}<extra></extra>"
                     ),
                 )
             )
 
+        if "actual_value" in fc.columns:
+            actual = (
+                fc.pivot_table(index="quarter", columns="scenario", values="actual_value", aggfunc="mean")
+                .sort_index()
+                .mean(axis=1)
+                .dropna()
+            )
+            if not actual.empty:
+                fig.add_trace(
+                    go.Scatter(
+                        x=actual.index,
+                        y=actual,
+                        mode="markers",
+                        name="Actual observed (comparison)",
+                        marker=dict(color="#2ca02c", size=11, symbol="diamond", line=dict(color="white", width=1)),
+                        hovertemplate=(
+                            "Actual observed"
+                            f"<br>%{{x|%Y-Q%q}}<br>{response_var}: %{{y:.2f}}<extra></extra>"
+                        ),
+                    )
+                )
+
     fig.update_layout(
-        title=f"{country_label}: {response_var} under forecasted ENSO vs no-ENSO counterfactual",
+        title=title,
         xaxis_title="Quarter",
         yaxis_title=response_var,
         legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="left", x=0),
@@ -1018,14 +1224,31 @@ def plot_enso_forecast_online(forecast_bundle, panel_df, plot_start=pd.Timestamp
     return fig
 
 
-def plot_metric_impact_map(summary_df, response_var, countries=None):
+def plot_metric_impact_map(
+    summary_df,
+    response_var,
+    countries=None,
+    *,
+    mean_col="cumulative_mean",
+    min_col="cumulative_min",
+    max_col="cumulative_max",
+    driver_label="ENSO",
+):
     if summary_df.empty:
+        return None
+    required_cols = [min_col, mean_col, max_col]
+    if any(col not in summary_df.columns for col in required_cols):
+        return None
+    if not pd.to_numeric(summary_df[mean_col], errors="coerce").notna().any():
         return None
     countries = list(countries or summary_df["country"].dropna().astype(str).unique())
     if not countries:
         return None
     summary_df = summary_df.copy()
     summary_df["country_name"] = summary_df["country"].map(iso3_to_label)
+    summary_df[min_col] = pd.to_numeric(summary_df[min_col], errors="coerce")
+    summary_df[mean_col] = pd.to_numeric(summary_df[mean_col], errors="coerce")
+    summary_df[max_col] = pd.to_numeric(summary_df[max_col], errors="coerce")
     world = gpd.read_file(_ROOT / "data" / "natural_earth" / "ne_110m_admin_0_countries.shp")
     df = world[world["ISO_A3"].isin(countries)].merge(
         summary_df,
@@ -1033,25 +1256,30 @@ def plot_metric_impact_map(summary_df, response_var, countries=None):
         right_on="country",
         how="left",
     )
-    vmax = float(np.nanmax(np.abs(df["cumulative_mean"]))) if df["cumulative_mean"].notna().any() else 1.0
+    vmax = float(np.nanmax(np.abs(df[mean_col]))) if df[mean_col].notna().any() else 1.0
     vmax = max(vmax, 1e-6)
     fig = px.choropleth(
         df,
         geojson=df.geometry,
         locations=df.index,
-        color="cumulative_mean",
+        color=mean_col,
         color_continuous_scale="RdBu_r",
         range_color=(-vmax, vmax),
         hover_name="NAME",
         hover_data={
             "country": False,
             "country_name": True,
-            "cumulative_min": ":.2f",
-            "cumulative_mean": ":.2f",
-            "cumulative_max": ":.2f",
+            min_col: ":.2f",
+            mean_col: ":.2f",
+            max_col: ":.2f",
         },
-        labels={"country_name": "Country", "cumulative_mean": "Mean cumulative difference"},
-        title=f"{response_var}: Cumulative impact relative to a no-ENSO baseline",
+        labels={
+            "country_name": "Country",
+            min_col: "Min cumulative difference",
+            mean_col: "Mean cumulative difference",
+            max_col: "Max cumulative difference",
+        },
+        title=f"{response_var}: Cumulative impact relative to a no-{driver_label} baseline",
     )
     fig.update_traces(marker_line_color="#4D4D4D", marker_line_width=0.8)
     fig.update_geos(
@@ -1599,6 +1827,101 @@ def plot_enso_peaks(panel_df, peak_df, selected_peak_labels=None):
     )
     return fig
 
+
+def historical_quarterly_enso(panel_df):
+    if panel_df.empty or "quarter" not in panel_df.columns or "ENSO" not in panel_df.columns:
+        return pd.DataFrame(columns=["quarter", "ENSO"])
+    enso = panel_df[["quarter", "ENSO"]].copy()
+    enso["quarter"] = pd.to_datetime(enso["quarter"], errors="coerce").dt.to_period("Q").dt.to_timestamp()
+    enso["ENSO"] = pd.to_numeric(enso["ENSO"], errors="coerce")
+    return (
+        enso.dropna(subset=["quarter", "ENSO"])
+        .groupby("quarter", as_index=False)["ENSO"]
+        .mean()
+        .sort_values("quarter")
+    )
+
+
+def _enso_background_rgba(value, max_abs):
+    if not np.isfinite(value) or not np.isfinite(max_abs) or max_abs <= 0:
+        return "rgba(255,255,255,0)"
+    strength = min(1.0, abs(float(value)) / float(max_abs))
+    if strength < 0.05:
+        return "rgba(255,255,255,0)"
+    alpha = 0.04 + 0.18 * strength
+    if value >= 0:
+        return f"rgba(214, 39, 40, {alpha:.3f})"
+    return f"rgba(31, 119, 180, {alpha:.3f})"
+
+
+def add_enso_intensity_background(fig, panel_df, plot_df, x_col):
+    enso = historical_quarterly_enso(panel_df)
+    if enso.empty or plot_df.empty:
+        return False
+
+    max_abs = float(np.nanmax(np.abs(enso["ENSO"].to_numpy(dtype=float))))
+    if not np.isfinite(max_abs) or max_abs <= 0:
+        return False
+
+    if x_col == "quarter":
+        xmin = pd.to_datetime(plot_df[x_col], errors="coerce").min()
+        xmax = pd.to_datetime(plot_df[x_col], errors="coerce").max()
+        shade_df = enso[enso["quarter"].between(xmin, xmax)].copy()
+        if shade_df.empty:
+            return False
+        for row in shade_df.itertuples(index=False):
+            q0 = pd.Timestamp(row.quarter)
+            fig.add_vrect(
+                x0=q0,
+                x1=q0 + pd.offsets.QuarterEnd(startingMonth=3),
+                fillcolor=_enso_background_rgba(row.ENSO, max_abs),
+                line_width=0,
+                layer="below",
+            )
+    else:
+        annual = enso.assign(year=enso["quarter"].dt.year).groupby("year", as_index=False)["ENSO"].mean()
+        years = pd.to_numeric(plot_df[x_col], errors="coerce")
+        shade_df = annual[annual["year"].between(years.min(), years.max())].copy()
+        if shade_df.empty:
+            return False
+        for row in shade_df.itertuples(index=False):
+            fig.add_vrect(
+                x0=int(row.year) - 0.5,
+                x1=int(row.year) + 0.5,
+                fillcolor=_enso_background_rgba(row.ENSO, max_abs),
+                line_width=0,
+                layer="below",
+            )
+
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            marker=dict(
+                color=[0],
+                cmin=-max_abs,
+                cmax=max_abs,
+                colorscale=[
+                    [0.0, "#1f77b4"],
+                    [0.5, "#ffffff"],
+                    [1.0, "#d62728"],
+                ],
+                showscale=True,
+                colorbar=dict(
+                    title="ENSO intensity",
+                    len=0.36,
+                    thickness=10,
+                    x=1.02,
+                    y=0.5,
+                ),
+            ),
+            hoverinfo="skip",
+            showlegend=False,
+        )
+    )
+    return True
+
 # ----- STREAMLIT SETUP
 st.set_page_config(
     page_title="Climate–Macro GVAR Explorer",
@@ -1620,11 +1943,20 @@ def load_probabilities(_panel_path: str):
 
 _panel_path = str(panel_csv_path())
 panel = load_panel(_panel_path)
-panel = panel[panel["country"].astype(str).isin(DASHBOARD_COUNTRIES)].copy()
 prob_df = load_probabilities(_panel_path)
-prob_df = prob_df[prob_df["country"].astype(str).isin(DASHBOARD_COUNTRIES)].copy()
+# Note: panel/prob_df are intentionally NOT restricted to DASHBOARD_COUNTRIES
+# anymore, so tabs reading `panel` directly (e.g. historical charts) work for
+# any country. Tabs that depend on precomputed pickles (Scenario Impacts,
+# Structural Break) still only have data for whichever countries were
+# included when those pickles were last generated -- they already show an
+# info/warning message when a selected country isn't found there.
 
-country_options = _filter_dashboard_countries(panel["country"].dropna().astype(str).unique())
+_MORE_COUNTRY_SEP = "───── More Countries ─────"
+_all_panel_countries = sorted(set(panel["country"].dropna().astype(str).unique()))
+_more_countries = [c for c in _all_panel_countries if c not in set(DASHBOARD_COUNTRIES)]
+country_options = list(DASHBOARD_COUNTRIES)
+if _more_countries:
+    country_options = country_options + [_MORE_COUNTRY_SEP] + _more_countries
 if not country_options:
     st.error("No configured dashboard countries are available in the panel.")
     st.stop()
@@ -1643,10 +1975,12 @@ with st.container(key="analysis_scope_panel"):
             "Country",
             country_options,
             index=default_option_index(country_options, "CHL"),
-            format_func=iso3_to_label,
+            format_func=lambda c: "— More Countries —" if c == _MORE_COUNTRY_SEP else iso3_to_label(c),
             key="country_select",
             help=HELP_TEXT["country"],
         )
+        if country == _MORE_COUNTRY_SEP:
+            country = "CHL"
     with control_cols[1]:
         response_var = st.selectbox(
             "Response",
@@ -1659,7 +1993,15 @@ with st.container(key="analysis_scope_panel"):
 
 
 
-tab_el_nino_event, tab_climate_risk, tab_scenario, tab_event_study, tab_structural_break, tab_guide, tab_feedback = st.tabs(
+(
+    tab_el_nino_event,
+    tab_climate_risk,
+    tab_scenario,
+    tab_event_study,
+    tab_structural_break,
+    tab_guide,
+    tab_feedback,
+) = st.tabs(
     [
         "2026–2027 El Niño Event",
         "Climate Early-Warning Chain",
@@ -1912,13 +2254,88 @@ with tab_scenario:
         st_subheader("Core forecast")
         st.info("No forecast bundle is available for the online ENSO forecast chart.")
     else:
+        climate_variant_choice = st.radio(
+            "Climate drivers used for this forecast",
+            options=list(CLIMATE_VARIANT_CHOICES),
+            format_func=lambda k: CLIMATE_VARIANT_CHOICES[k]["label"],
+            index=0,
+            key="scenario_climate_variant",
+            horizontal=True,
+            help=(
+                "Choose one of the pre-estimated external-driver specifications. Oil, "
+                "HeatDry, and IOD use merged panel/source values; ENSO specifications "
+                "also include the mean/min/max ENSO scenario paths."
+            ),
+        )
+        climate_vars_selected = CLIMATE_VARIANT_CHOICES[climate_variant_choice]["vars"]
+        heat_var_active = "HeatDry" if "HeatDry" in climate_vars_selected else None
+        enso_active = "ENSO" in climate_vars_selected
+        iod_active = "IOD" in climate_vars_selected
+        climate_variant_bundle = {
+            "scenarios": _select_climate_variant_scenarios(forecast_pack["bundle"], climate_vars_selected),
+            "climate_variants": forecast_pack["bundle"].get("climate_variants"),
+        }
+        if forecast_pack["bundle"].get("climate_variants") is None:
+            st.caption(
+                "This forecast pickle predates the climate-driver toggle, so it's showing "
+                "the default ENSO-only forecast regardless of the selection above. "
+                "Regenerate `Dash_Input/gvar_forecast_results.pkl` to enable it."
+            )
+        elif set(climate_vars_selected) != {"ENSO"}:
+            st.caption(
+                f"Model refit using: {', '.join(CLIMATE_TOGGLE_OPTIONS[v] for v in climate_vars_selected)}. "
+                "This is a separately-estimated model, not a filter on the default ENSO forecast."
+            )
+
+        show_actual_overlap = st.checkbox(
+            "Compare forecast vs. actual for already-observed quarters",
+            value=False,
+            help=(
+                "Some near-term quarters are treated as forecast/nowcast because another "
+                "model variable was still incomplete when the model was run, even though "
+                "new actual data for the selected response variable has since become "
+                "available. Enabling this shows those quarters' model forecast alongside "
+                "the real observed value, for comparison."
+            ),
+            key="scenario_show_actual_overlap",
+        )
+        coeff_method = "last"
+        if show_actual_overlap:
+            coeff_method = st.radio(
+                "Forecast coefficient method",
+                options=list(FORECAST_COEFF_METHOD_OPTIONS),
+                format_func=lambda x: FORECAST_COEFF_METHOD_OPTIONS[x],
+                horizontal=True,
+                key="scenario_coeff_method",
+                help=(
+                    "Selects among complete forecast paths saved in the forecast pickle. "
+                    "The dashboard does not recompute coefficients, rerun forecasts, or "
+                    "read structural-break diagnostic coefficient series."
+                ),
+            )
         selected_df = build_forecast_plot_df(
-            forecast_pack["bundle"],
+            climate_variant_bundle,
             panel,
             [country],
             response_var,
             history_start=None,
+            include_observed_overlap=show_actual_overlap,
+            coeff_method=coeff_method,
         )
+        if (
+            show_actual_overlap
+            and coeff_method != "last"
+            and not selected_df.empty
+            and not selected_df.loc[
+                ~selected_df["period_type"].eq("Actual history"),
+                "coefficient_method_available",
+            ].fillna(False).any()
+        ):
+            st.warning(
+                f"`{FORECAST_COEFF_METHOD_OPTIONS[coeff_method]}` is not available "
+                "for this country in the saved forecast bundle. Regenerate the offline "
+                "forecast pickle before using this method."
+            )
         q_summary, c_summary = summarize_forecast_ranges(selected_df)
 
         st_subheader(f"Forecast path for {iso3_to_label(country)}")
@@ -1932,24 +2349,71 @@ with tab_scenario:
         else:
             st.info("Forecast pickle does not contain ENSO forecast data.")
 
-        fig_selected = plot_selected_country_forecast(selected_df, response_var, iso3_to_label(country))
-        if fig_selected is None:
-            st.info("Forecast pickle does not contain data for the selected country/response.")
-        else:
-            st.plotly_chart(fig_selected, width="stretch")
-            st.caption(
-                "No-ENSO counterfactual: the same forecasting model is run with future ENSO index "
-                "values set to 0, so the gap from the forecasted ENSO scenario indicates the "
-                "model-implied macroeconomic impact of ENSO."
+        if enso_active:
+            fig_selected = plot_selected_country_forecast(
+                selected_df, response_var, iso3_to_label(country), counterfactual="enso"
             )
+            if fig_selected is None:
+                st.info("Forecast pickle does not contain data for the selected country/response.")
+            else:
+                st.plotly_chart(fig_selected, width="stretch")
+                st.caption(
+                    "No-ENSO counterfactual: the same forecasting model is run with future ENSO index "
+                    "values set to 0, so the gap from the forecasted ENSO scenario indicates the "
+                    "model-implied macroeconomic impact of ENSO."
+                )
+                if show_actual_overlap:
+                    st.caption(
+                        "Green diamonds: the real observed value for quarters now shown as "
+                        "forecast/nowcast, so you can compare the model's estimate against what "
+                        "actually happened once that data became available."
+                    )
+        else:
+            st.info("ENSO is not part of this model variant, so no ENSO counterfactual is shown.")
+
+        if iod_active:
+            fig_iod = plot_selected_country_forecast(
+                selected_df, response_var, iso3_to_label(country), counterfactual="iod"
+            )
+            if fig_iod is None:
+                st.info("Forecast pickle does not contain an IOD counterfactual for this selection.")
+            else:
+                st.plotly_chart(fig_iod, width="stretch")
+                st.caption(
+                    "No-IOD counterfactual: the same forecasting model is run with future IOD index "
+                    "values set to 0, so the gap from the forecasted scenario indicates the "
+                    "model-implied macroeconomic impact of IOD."
+                )
+
+        if heat_var_active:
+            heat_label = CLIMATE_TOGGLE_OPTIONS[heat_var_active]
+            fig_heat = plot_selected_country_forecast(
+                selected_df, response_var, iso3_to_label(country),
+                counterfactual="heat", heat_label=heat_label,
+            )
+            if fig_heat is None:
+                st.info(f"Forecast pickle does not contain a {heat_label} counterfactual for this selection.")
+            else:
+                st.plotly_chart(fig_heat, width="stretch")
+                st.caption(
+                    f"No-{heat_label} counterfactual: the same forecasting model is run with the "
+                    f"future {heat_label} values set to 0, so the gap from the forecasted scenario "
+                    "indicates the model-implied macroeconomic impact of "
+                    f"{heat_label}."
+                )
 
         if not q_summary.empty:
-            st_subheader("Projected GDP growth and ENSO impacts relative to a no-ENSO baseline")
+            _impact_title = (
+                "Projected GDP growth and ENSO impacts relative to a no-ENSO baseline"
+                if enso_active
+                else "Projected GDP growth and climate-driver impacts"
+            )
+            st_subheader(_impact_title)
             st.caption(
                 "Historical observations are used through 2026Q1. Where recent economic data are "
                 "unavailable, near-term values are estimated before the forecast period begins. "
                 "Reported cumulative impacts and maps reflect the projected effects of the selected "
-                "ENSO scenario from 2026Q2 onward."
+                "scenario from 2026Q2 onward."
             )
             for c in [country]:
                 c_quarters = q_summary[q_summary["country"] == c].copy()
@@ -1959,42 +2423,95 @@ with tab_scenario:
                 st.markdown(f"**{iso3_to_label(c)}**")
                 if not c_cum.empty:
                     r = c_cum.iloc[0]
-                    st.metric(
-                        f"{response_var}: Cumulative impact relative to a no-ENSO baseline",
-                        f"{r['cumulative_mean']:+.2f} p.p.",
-                        delta=f"{r['cumulative_min']:+.2f} to {r['cumulative_max']:+.2f} p.p.",
-                        help="Cumulative forecast difference between the ENSO scenario and a no-ENSO-impact baseline, shown in percentage points.",
-                    )
+                    n_metrics = int(enso_active) + int(iod_active) + int(bool(heat_var_active))
+                    metric_cols = st.columns(n_metrics) if n_metrics > 1 else [st.container()]
+                    metric_i = 0
+                    if enso_active:
+                        with metric_cols[metric_i]:
+                            st.metric(
+                                f"{response_var}: Cumulative impact relative to a no-ENSO baseline",
+                                f"{r['cumulative_mean']:+.2f} p.p.",
+                                delta=f"{r['cumulative_min']:+.2f} to {r['cumulative_max']:+.2f} p.p.",
+                                help="Cumulative forecast difference between the ENSO scenario and a no-ENSO-impact baseline, shown in percentage points.",
+                            )
+                        metric_i += 1
+                    if iod_active:
+                        with metric_cols[metric_i]:
+                            st.metric(
+                                f"{response_var}: Cumulative impact relative to a no-IOD baseline",
+                                f"{r['cumulative_iod_mean']:+.2f} p.p.",
+                                delta=f"{r['cumulative_iod_min']:+.2f} to {r['cumulative_iod_max']:+.2f} p.p.",
+                                help="Cumulative forecast difference between the IOD scenario and a no-IOD-impact baseline, shown in percentage points.",
+                            )
+                        metric_i += 1
+                    if heat_var_active:
+                        heat_label = CLIMATE_TOGGLE_OPTIONS[heat_var_active]
+                        with metric_cols[metric_i]:
+                            st.metric(
+                                f"{response_var}: Cumulative impact relative to a no-{heat_label} baseline",
+                                f"{r['cumulative_heat_mean']:+.2f} p.p.",
+                                delta=f"{r['cumulative_heat_min']:+.2f} to {r['cumulative_heat_max']:+.2f} p.p.",
+                                help=f"Cumulative forecast difference between the {heat_label} scenario and a no-{heat_label}-impact baseline, shown in percentage points.",
+                            )
                 show_tbl = c_quarters.copy()
                 show_tbl["quarter"] = show_tbl["quarter"].dt.to_period("Q").astype(str)
                 if "period_type" in show_tbl.columns:
                     show_tbl["period_type"] = show_tbl["period_type"].replace({"Gap fill / nowcast": "Estimated"})
                 response_label = response_table_label(response_var)
-                show_tbl = show_tbl.rename(
-                    columns={
-                        "quarter": "Quarter",
-                        "period_type": "Period type",
-                        "value_min": f"{response_label} (Low ENSO)",
-                        "value_mean": f"{response_label} (Mean ENSO)",
-                        "value_max": f"{response_label} (High ENSO)",
-                        "impact_min": f"{response_var} (min vs no ENSO)",
-                        "impact_mean": f"{response_var} (mean vs no ENSO)",
-                        "impact_max": f"{response_var} (max vs no ENSO)",
-                    }
-                )
+                rename_map = {"quarter": "Quarter", "period_type": "Period type"}
+                show_cols = ["Quarter", "Period type"]
+                if enso_active:
+                    rename_map.update(
+                        {
+                            "value_min": f"{response_label} (Low ENSO)",
+                            "value_mean": f"{response_label} (Mean ENSO)",
+                            "value_max": f"{response_label} (High ENSO)",
+                            "impact_min": f"{response_var} (min vs no ENSO)",
+                            "impact_mean": f"{response_var} (mean vs no ENSO)",
+                            "impact_max": f"{response_var} (max vs no ENSO)",
+                        }
+                    )
+                    show_cols += [
+                        f"{response_label} (Low ENSO)",
+                        f"{response_label} (Mean ENSO)",
+                        f"{response_label} (High ENSO)",
+                        f"{response_var} (min vs no ENSO)",
+                        f"{response_var} (mean vs no ENSO)",
+                        f"{response_var} (max vs no ENSO)",
+                    ]
+                else:
+                    rename_map["value_mean"] = response_label
+                    show_cols.append(response_label)
+                if iod_active:
+                    rename_map.update(
+                        {
+                            "impact_iod_min": f"{response_var} (min vs no IOD)",
+                            "impact_iod_mean": f"{response_var} (mean vs no IOD)",
+                            "impact_iod_max": f"{response_var} (max vs no IOD)",
+                        }
+                    )
+                    show_cols += [
+                        f"{response_var} (min vs no IOD)",
+                        f"{response_var} (mean vs no IOD)",
+                        f"{response_var} (max vs no IOD)",
+                    ]
+                if heat_var_active:
+                    heat_label = CLIMATE_TOGGLE_OPTIONS[heat_var_active]
+                    rename_map.update(
+                        {
+                            "impact_heat_min": f"{response_var} (min vs no {heat_label})",
+                            "impact_heat_mean": f"{response_var} (mean vs no {heat_label})",
+                            "impact_heat_max": f"{response_var} (max vs no {heat_label})",
+                        }
+                    )
+                    show_cols += [
+                        f"{response_var} (min vs no {heat_label})",
+                        f"{response_var} (mean vs no {heat_label})",
+                        f"{response_var} (max vs no {heat_label})",
+                    ]
+                show_tbl = show_tbl.rename(columns=rename_map)
                 st.dataframe(
-                    show_tbl[
-                        [
-                            "Quarter",
-                            "Period type",
-                            f"{response_label} (Low ENSO)",
-                            f"{response_label} (Mean ENSO)",
-                            f"{response_label} (High ENSO)",
-                            f"{response_var} (min vs no ENSO)",
-                            f"{response_var} (mean vs no ENSO)",
-                            f"{response_var} (max vs no ENSO)",
-                        ]
-                    ],
+                    show_tbl[show_cols],
                     hide_index=True,
                     width="stretch",
                 )
@@ -2021,7 +2538,7 @@ with tab_scenario:
             help=HELP_TEXT["scenario_countries"],
         )
         comparison_df = build_forecast_plot_df(
-            forecast_pack["bundle"],
+            climate_variant_bundle,
             panel,
             scenario_countries,
             response_var,
@@ -2033,27 +2550,71 @@ with tab_scenario:
             st.plotly_chart(fig_core, width="stretch")
 
         st.markdown("**Cumulative impact maps**")
-        st.caption(
-            "Map range: 2026Q2-2027Q1 cumulative ENSO impact. Maps show all 12 dashboard "
-            "countries and do not depend on the multi-country selection above."
-        )
-        map_countries = country_options
-        map_cols = st.columns(2)
-        for i, metric in enumerate([v for v in MACRO_IMPACT_VARS if v in panel.columns]):
-            metric_df = build_forecast_plot_df(
-                forecast_pack["bundle"],
-                panel,
-                map_countries,
-                metric,
-                history_start=None,
+        map_specs = []
+        if enso_active:
+            map_specs.append(
+                {
+                    "label": "ENSO",
+                    "mean_col": "cumulative_mean",
+                    "min_col": "cumulative_min",
+                    "max_col": "cumulative_max",
+                }
             )
-            _, metric_summary = summarize_forecast_ranges(metric_df)
-            fig_map = plot_metric_impact_map(metric_summary, metric, countries=map_countries)
-            with map_cols[i % 2]:
-                if fig_map is not None:
-                    st.plotly_chart(fig_map, width="stretch")
-                else:
-                    st.info(f"No cumulative impact map data for {metric}.")
+        if iod_active:
+            map_specs.append(
+                {
+                    "label": "IOD",
+                    "mean_col": "cumulative_iod_mean",
+                    "min_col": "cumulative_iod_min",
+                    "max_col": "cumulative_iod_max",
+                }
+            )
+        if heat_var_active:
+            heat_label = CLIMATE_TOGGLE_OPTIONS[heat_var_active]
+            map_specs.append(
+                {
+                    "label": heat_label,
+                    "mean_col": "cumulative_heat_mean",
+                    "min_col": "cumulative_heat_min",
+                    "max_col": "cumulative_heat_max",
+                }
+            )
+        if not map_specs:
+            selected_variant_label = CLIMATE_VARIANT_CHOICES[climate_variant_choice]["label"]
+            st.info(f"No climate counterfactual maps are available for the {selected_variant_label} variant.")
+        else:
+            st.caption(
+                "Map range: 2026Q2-2027Q1 cumulative climate-driver impact. Maps show all "
+                "12 dashboard countries and do not depend on the multi-country selection above."
+            )
+            map_countries = country_options
+            metrics_for_maps = [v for v in MACRO_IMPACT_VARS if v in panel.columns]
+            for spec in map_specs:
+                st.markdown(f"**No-{spec['label']} counterfactual maps**")
+                map_cols = st.columns(2)
+                for i, metric in enumerate(metrics_for_maps):
+                    metric_df = build_forecast_plot_df(
+                        climate_variant_bundle,
+                        panel,
+                        map_countries,
+                        metric,
+                        history_start=None,
+                    )
+                    _, metric_summary = summarize_forecast_ranges(metric_df)
+                    fig_map = plot_metric_impact_map(
+                        metric_summary,
+                        metric,
+                        countries=map_countries,
+                        mean_col=spec["mean_col"],
+                        min_col=spec["min_col"],
+                        max_col=spec["max_col"],
+                        driver_label=spec["label"],
+                    )
+                    with map_cols[i % 2]:
+                        if fig_map is not None:
+                            st.plotly_chart(fig_map, width="stretch")
+                        else:
+                            st.info(f"No cumulative no-{spec['label']} map data for {metric}.")
 
 
 with tab_event_study:
@@ -2203,6 +2764,99 @@ with tab_event_study:
 
         render_event_mode_plot("Observed Responses")
         render_event_mode_plot("Estimated ENSO Effects")
+
+    st.divider()
+    st_header("Climate Vulnerability Analysis")
+    st.caption(
+        "Identifies climate-sensitive countries before examining their ENSO responses. "
+        "This section uses ENSO only (no heat/moisture -- those are analyzed separately). "
+        "The screening below is structural (no model); the validation reuses the existing "
+        "production TVP-GVAR EM/Kalman-filter coefficients (ENSO + OIL_YoY) for "
+        "candidate countries only. Not dependent on the country selected above."
+    )
+    _VULN_DIR = _ROOT / "analysis" / "vulnerability"
+    _screen_path = _VULN_DIR / "climate_vulnerability_screening.csv"
+    _valid_path = _VULN_DIR / "climate_vulnerability_validation.csv"
+
+    if not _screen_path.is_file() or not _valid_path.is_file():
+        st.warning(
+            "Vulnerability analysis outputs not found. Run "
+            "`python analysis/vulnerability/build_climate_vulnerability.py` first."
+        )
+    else:
+        screen_df = pd.read_csv(_screen_path)
+        valid_df = pd.read_csv(_valid_path)
+        screen_df["Country"] = screen_df["ISO3"].map(iso3_to_label)
+        valid_df["Country"] = valid_df["ISO3"].map(iso3_to_label)
+
+        st_subheader("Structural Vulnerability Screening")
+        st.caption(
+            "Candidates = (Agriculture %GDP above median OR ND-GAIN Sensitivity above median) "
+            "AND at least 40 quarters of macroeconomic observations. Screening only -- not a ranking."
+        )
+        med_agr = screen_df["agr_gdp_pct_median"].iloc[0]
+        med_sens = screen_df["ndgain_sensitivity_median"].iloc[0]
+        fig_screen = go.Figure()
+        non_cand = screen_df[~screen_df["is_candidate"]]
+        cand = screen_df[screen_df["is_candidate"]]
+        fig_screen.add_trace(
+            go.Scatter(
+                x=non_cand["agr_gdp_pct"], y=non_cand["ndgain_sensitivity"],
+                mode="markers", name="Other countries",
+                marker=dict(color="#B8B8B8", size=7),
+                text=non_cand["Country"], hovertemplate="%{text}<br>Agr %%GDP: %{x:.2f}<br>ND-GAIN: %{y:.3f}<extra></extra>",
+            )
+        )
+        fig_screen.add_trace(
+            go.Scatter(
+                x=cand["agr_gdp_pct"], y=cand["ndgain_sensitivity"],
+                mode="markers+text", name="Candidate countries",
+                marker=dict(color="#d62728", size=10),
+                text=cand["Country"], textposition="top center",
+                hovertemplate="%{text}<br>Agr %%GDP: %{x:.2f}<br>ND-GAIN: %{y:.3f}<extra></extra>",
+            )
+        )
+        fig_screen.add_vline(x=med_agr, line_dash="dash", line_color="gray")
+        fig_screen.add_hline(y=med_sens, line_dash="dash", line_color="gray")
+        fig_screen.update_layout(
+            xaxis_title="Agriculture, forestry & fishing (% of GDP), 2014-2024 avg",
+            yaxis_title="ND-GAIN Sensitivity Index, 2014-2024 avg",
+            height=560,
+        )
+        st.plotly_chart(fig_screen, width="stretch")
+        st.markdown(f"**Candidate countries ({len(cand)}):** {', '.join(sorted(cand['Country']))}")
+
+        st_subheader("Dashboard-Based Validation")
+        st.caption(
+            "Realized ENSO Influence = mean |beta_ENSO(t) x ENSO_z(t)| (standardized/z-scored "
+            "units, matching the model's own normalization). Coefficient Reliability = fraction "
+            "of quarters where |beta_ENSO/SE| exceeds 1.96, from the Kalman filter's own P_filt "
+            "uncertainty. Both are averaged across GDP/CPI/FX/EX and computed only for candidate "
+            "countries, reusing the existing EM/Kalman-filter fit (no new methodology)."
+        )
+        if valid_df.empty:
+            st.info("No candidate countries produced a valid EM fit.")
+        else:
+            fig_valid = go.Figure(
+                go.Scatter(
+                    x=valid_df["realized_enso_influence"], y=valid_df["coefficient_reliability"],
+                    mode="markers+text", marker=dict(color="#1f77b4", size=10),
+                    text=valid_df["Country"], textposition="top center",
+                    hovertemplate="%{text}<br>Influence: %{x:.4f}<br>Reliability: %{y:.3f}<extra></extra>",
+                )
+            )
+            fig_valid.add_vline(x=float(valid_df["realized_enso_influence"].median()), line_dash="dash", line_color="gray")
+            fig_valid.add_hline(y=float(valid_df["coefficient_reliability"].median()), line_dash="dash", line_color="gray")
+            fig_valid.update_layout(
+                xaxis_title="Realized ENSO Influence (standardized units)",
+                yaxis_title="Coefficient Reliability (fraction of quarters, |beta/SE| > 1.96)",
+                height=560,
+            )
+            st.plotly_chart(fig_valid, width="stretch")
+            st.dataframe(
+                valid_df[["Country", "realized_enso_influence", "coefficient_reliability", "n_valid_quarters"]],
+                width="stretch",
+            )
 
 
 with tab_structural_break:
@@ -2439,20 +3093,12 @@ with tab_structural_break:
             title=f"{iso3_to_label(iso3)}: structural break score series (model diagnostics)",
         )
 
-        model_break_years = _model_break_years(df_sc) if freq_mode == "quarterly" else []
-        if model_break_years:
+        enso_background_added = add_enso_intensity_background(fig_sb, panel, plot_df, x_col)
+        if enso_background_added:
             st.caption(
-                "Shaded years are model-implied break years selected from the annual peaks "
-                "of the composite of the three model diagnostics."
-            )
-        for yr in model_break_years:
-            fig_sb.add_vrect(
-                x0=pd.Timestamp(year=int(yr), month=1, day=1),
-                x1=pd.Timestamp(year=int(yr), month=12, day=31),
-                fillcolor="gold",
-                opacity=0.12,
-                line_width=0,
-                layer="below",
+                "Background shading shows historical ENSO intensity from the panel series: "
+                "red is positive, blue is negative, and near-zero values are transparent. "
+                "Quarterly charts use quarterly ENSO; annual charts use calendar-year mean ENSO."
             )
 
         if use_llm_overlay and not llm_overlay_df.empty:
@@ -2472,6 +3118,7 @@ with tab_structural_break:
                 else:
                     fig_sb.add_vline(x=int(yr), line_dash="dot", line_color="goldenrod")
 
+        fig_sb.update_layout(margin=dict(l=20, r=90, t=60, b=45))
         st.plotly_chart(fig_sb, width="stretch")
 
     st_subheader("2) World Bank document information")

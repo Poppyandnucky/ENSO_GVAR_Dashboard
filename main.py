@@ -392,7 +392,7 @@ def varx_rolling_predict(Y: np.ndarray,
 # In[ ]:
 
 
-# ---------- 标准的TVP-VECM Kalman Filter（参考简洁版）----------
+
 def kalman_multilag_filter_vecm(
     Y: np.ndarray,                    # ΔY
     Z_all: np.ndarray,                # ΔZ
@@ -409,10 +409,6 @@ def kalman_multilag_filter_vecm(
 ):
 
 
-    """
-    标准Kalman Filter，不使用标准化和岭回归
-    模型：ΔY_t = Σ Γ_i ΔY_{t-i} + B ΔZ_{t-1} + α β' Y_{t-1} + ε_t
-    """
     global GLOBAL_QR_CACHE
     Q_hist = []
     R_hist = []
@@ -423,13 +419,11 @@ def kalman_multilag_filter_vecm(
     m = lags * mY + mX + r
     p = m * mY
 
-    # 初始化
     theta = theta0.copy() if theta0 is not None else np.zeros((p, 1))
     P = P0.copy()
     R = R0.copy()
     Q = Q0.copy()
 
-    # dropout mask处理
     if dropout0 is not None:
         dropout_exp = 3
         d0 = np.asarray(dropout0).ravel()[:p]
@@ -439,7 +433,6 @@ def kalman_multilag_filter_vecm(
             P[np.ix_(idx_dropout, idx_dropout)] *= scale[:, None] * scale[None, :]
             Q[np.ix_(idx_dropout, idx_dropout)] *= scale[:, None] * scale[None, :]
 
-    # 存储
     theta_est = np.zeros((n, p))
     Y_pred = np.full((n, mY), np.nan)
     P_hist = np.zeros((p, p, n))
@@ -450,9 +443,7 @@ def kalman_multilag_filter_vecm(
     rho_R = 0.02
     rho_Q = 0.02
 
-    # Kalman Filter循环
     for t in range(lags + 1, n):
-        # 构造X_t: [ΔY_{t-1}..ΔY_{t-lags}, ΔZ_{t-1}, ECT_{t-1}]
         pieces = []
         for i in range(1, lags + 1):
             pieces.append(Y[t - i, :])
@@ -463,30 +454,21 @@ def kalman_multilag_filter_vecm(
             pieces.append(ECT_prev)
         X_t = np.concatenate(pieces)  # (m,)
 
-        # 构造H_t: 对每个方程
         H_t = np.zeros((mY, p))
         for j in range(mY):
             idx = slice(j * m, (j + 1) * m)
             H_t[j, idx] = X_t
-
-        # 标准Kalman Filter步骤
-        # 预测
         theta_pred = theta
         P_pred = P + Q
 
-        # 创新协方差
         S = H_t @ P_pred @ H_t.T + R
         S = (S + S.T) / 2
         S += eps * np.eye(mY)
-
-        # 卡尔曼增益
         try:
             S_inv = np.linalg.inv(S)
         except np.linalg.LinAlgError:
             S_inv = np.linalg.pinv(S)
         K = P_pred @ H_t.T @ S_inv
-
-        # 更新
         y_t = Y[t, :].reshape(-1, 1)
         y_hat = H_t @ theta_pred
         innovation = y_t - y_hat
@@ -503,21 +485,17 @@ def kalman_multilag_filter_vecm(
         e_raw[t, :] = innovation.ravel()
 
         if Q_R_update == True:
-            # 计算新的 R_t
             R_new = (1.0 - rho_R) * R + rho_R * (innovation @ innovation.T)
-            # 限制 R 不要爆掉太多
             if np.trace(R_new) > 5 * np.trace(R0):
                 R_new = 5 * np.trace(R0) / np.trace(R_new) * R_new
             R = 0.5 * (R_new + R_new.T) + eps * np.eye(mY)
-
-            # Q 整体缩放
             err2 = (innovation.T @ innovation).item() / mY
             tr_Q = np.trace(Q)
             if tr_Q > eps and err2 > 0:
                 scale = err2 / tr_Q
                 Q = (1.0 - rho_Q) * Q + rho_Q * scale * Q
 
-    # 计算误差
+
     valid = ~np.isnan(e_raw).any(axis=1)
     if np.any(valid):
         rmse = np.sqrt(np.nanmean(e_raw[valid] ** 2))

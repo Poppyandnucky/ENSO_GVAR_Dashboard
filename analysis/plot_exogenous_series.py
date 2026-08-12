@@ -22,17 +22,17 @@ if str(FORECAST_DIR) not in sys.path:
 os.environ.setdefault("GVAR_IMPORT_ONLY", "1")
 
 from gvar_kf_forecast import (  # noqa: E402
-    FORECAST_COMMODITY,
     FORECAST_ENSO_MAX,
     FORECAST_ENSO_MEAN,
     FORECAST_ENSO_MIN,
+    _oil_yoy_history,
 )
 from trp.inputs import panel_csv_path  # noqa: E402
 
 
 PANEL_CSV = panel_csv_path()
 OUTPUT_ENSO = ROOT / "analysis" / "Dash_Output" / "enso_series" / "enso_history_forecast.png"
-OUTPUT_COMMODITY = ROOT / "analysis" / "Dash_Output" / "commodity_series" / "commodity_history_forecast.png"
+OUTPUT_OIL = ROOT / "analysis" / "Dash_Output" / "oil_series" / "oil_history_forecast.png"
 PLOT_START = pd.Timestamp("2014-01-01")
 
 
@@ -57,11 +57,6 @@ def _load_column_csv(col: str, path: Path = PANEL_CSV) -> pd.DataFrame:
 
 def _dict_quarter_series(value_map: dict[str, float], col: str) -> pd.DataFrame:
     rows = [{"q": _quarter_ts(k), col: float(v)} for k, v in value_map.items()]
-    return pd.DataFrame(rows).sort_values("q").reset_index(drop=True)
-
-
-def _commodity_dict_to_series(commodity_map: dict[str, float]) -> pd.DataFrame:
-    rows = [{"q": _quarter_start(k), "COMMODITY_YoY": float(v)} for k, v in commodity_map.items()]
     return pd.DataFrame(rows).sort_values("q").reset_index(drop=True)
 
 
@@ -151,15 +146,17 @@ def plot_enso_history_forecast(
     return output_path
 
 
-def plot_commodity_history_forecast(
+def plot_oil_history_forecast(
     *,
     panel_csv: Path = PANEL_CSV,
-    output_path: Path = OUTPUT_COMMODITY,
+    output_path: Path = OUTPUT_OIL,
     plot_start: pd.Timestamp = PLOT_START,
 ) -> Path:
-    hist = _load_column_csv("COMMODITY_YoY", panel_csv)
+    hist = _load_column_csv("OIL_YoY", panel_csv)
     hist = hist[hist["q"] >= plot_start].reset_index(drop=True)
-    fc, fc_start = _future_only(_commodity_dict_to_series(FORECAST_COMMODITY), hist)
+    oil_source = _oil_yoy_history().rename(columns={"quarter": "q"})
+    oil_source = oil_source[oil_source["q"] >= plot_start].reset_index(drop=True)
+    fc, fc_start = _future_only(oil_source, hist)
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -167,19 +164,19 @@ def plot_commodity_history_forecast(
     fig, ax = plt.subplots(figsize=(11, 4.5))
     ax.plot(
         hist["q"],
-        hist["COMMODITY_YoY"],
+        hist["OIL_YoY"],
         color="C0",
         linewidth=1.8,
         marker=".",
         markersize=4,
-        label="COMMODITY_YoY (panel CSV)",
+        label="OIL_YoY (panel CSV)",
         zorder=2,
     )
 
     if len(hist) and len(fc):
         ax.plot(
             [hist["q"].iloc[-1], fc["q"].iloc[0]],
-            [hist["COMMODITY_YoY"].iloc[-1], fc["COMMODITY_YoY"].iloc[0]],
+            [hist["OIL_YoY"].iloc[-1], fc["OIL_YoY"].iloc[0]],
             color="gray",
             linewidth=1.0,
             linestyle=":",
@@ -188,24 +185,24 @@ def plot_commodity_history_forecast(
         )
         ax.plot(
             fc["q"],
-            fc["COMMODITY_YoY"],
+            fc["OIL_YoY"],
             color="C1",
             linewidth=2.2,
             marker="o",
             markersize=6,
             markeredgecolor="black",
             markeredgewidth=0.4,
-            label="forecast (new)",
+            label="Brent source extension",
             zorder=4,
         )
 
     ax.axvline(fc_start, color="gray", linestyle="--", linewidth=0.9, alpha=0.75)
-    ax.set_ylabel("COMMODITY_YoY")
+    ax.set_ylabel("OIL_YoY")
     ax.set_xlabel("quarter")
     ax.grid(alpha=0.25)
     ax.legend(loc="upper left", fontsize=9)
     ax.set_title(
-        f"COMMODITY_YoY from {plot_start.year} - panel CSV + forecast "
+        f"OIL_YoY from {plot_start.year} - panel CSV + Brent source extension "
         f"({pd.Period(fc_start, freq='Q')} onward highlighted)"
     )
     fig.autofmt_xdate()
@@ -218,7 +215,7 @@ def plot_commodity_history_forecast(
 
 def main() -> None:
     plot_enso_history_forecast()
-    plot_commodity_history_forecast()
+    plot_oil_history_forecast()
 
 
 if __name__ == "__main__":

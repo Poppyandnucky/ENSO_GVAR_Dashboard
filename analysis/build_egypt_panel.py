@@ -13,7 +13,7 @@ The script preserves the existing panel schema. It writes:
 
 This output is an intermediate stage: the dashboard's actual input panel is
 `analysis/gvar_panel_streamlit (8 + EGY + PER).csv`, which appends Peru rows
-(carried over from the legacy `gvar_panel_streamlit (7 + EGY).csv`, since
+(carried over from the legacy `gvar_panel_streamlit (8 + EGY + PER).csv`, since
 dataset (8) has no Peru-specific raw sources to rebuild from) on top of this
 script's output.
 """

@@ -1,7 +1,7 @@
 """
 Multi-step KF forecast after EM estimation (GVAR_LLM_pickle pipeline).
 
-Uses the final EM/KF state and user-supplied exogenous forecasts (ENSO, COMMODITY).
+Uses the final EM/KF state and user-supplied exogenous forecasts (ENSO, Oil).
 Forecast bands are generated offline by Monte Carlo beta random walks using Q
 from the Kalman filter. The last filtered beta is treated as known (P = 0) and
 observation noise is excluded (R = 0), so uncertainty enters through future beta
@@ -71,21 +71,7 @@ FORECAST_ENSO_SCENARIOS: dict[str, dict[str, float]] = {
 # Backward-compatible alias (mean scenario).
 FORECAST_ENSO = FORECAST_ENSO_MEAN
 
-# COMMODITY_YoY forecast (quarter-end dates)
-FORECAST_COMMODITY = {
-    "2025-03-31": -1.520088,
-    "2025-06-30": 2.171268,
-    "2025-09-30": 5.290896,
-    "2025-12-31": 7.293260,
-    "2026-03-31": 8.207627,
-    "2026-06-30": 8.339559,
-    "2026-09-30": 8.049436,
-    "2026-12-31": 7.628315,
-    "2027-03-31": 7.255114,
-}
-
-# If True, also forecast 2025Q1–Q2 etc. when COMMODITY exists (missing ENSO → 0 in z-space).
-EXTEND_TARGETS_TO_COMMODITY_RANGE = True
+EXTEND_TARGETS_TO_OIL_RANGE = True
 
 
 def _quarter_start(ts) -> pd.Timestamp:
@@ -98,10 +84,27 @@ def _all_forecast_target_quarters() -> list[pd.Timestamp]:
     for enso_map in FORECAST_ENSO_SCENARIOS.values():
         enso_keys.update(enso_map)
     enso_q = {pd.Period(str(k).strip().upper(), freq="Q").to_timestamp() for k in enso_keys}
-    comm_q = {_quarter_start(pd.to_datetime(k)) for k in FORECAST_COMMODITY}
-    if EXTEND_TARGETS_TO_COMMODITY_RANGE:
-        p_min = min(comm_q)
-        p_max = max(enso_q | comm_q)
+    oil_q: set[pd.Timestamp] = set()
+    oil_path = _ROOT / "analysis" / "Brent_Crude_Oil_Spot_Price.csv"
+    if oil_path.is_file():
+        raw = pd.read_csv(oil_path, usecols=["Quarter"])
+        q = raw["Quarter"].astype(str).str.extract(r"Q([1-4])\s+(\d{4})").dropna()
+        oil_q = {
+            pd.Period(year=int(year), quarter=int(quarter), freq="Q").to_timestamp()
+            for quarter, year in zip(q[0], q[1])
+        }
+    iod_q: set[pd.Timestamp] = set()
+    iod_path = _ROOT / "analysis" / "validation" / "enso_quarterly_merged_with_screenshot.csv"
+    if iod_path.is_file():
+        raw_iod = pd.read_csv(iod_path, usecols=["quarter"])
+        iod_q = {
+            pd.Period(str(q).strip(), freq="Q").to_timestamp()
+            for q in raw_iod["quarter"].dropna()
+        }
+    all_q = enso_q | oil_q | iod_q
+    if EXTEND_TARGETS_TO_OIL_RANGE and all_q:
+        p_min = min(all_q)
+        p_max = max(all_q)
     else:
         p_min = min(enso_q)
         p_max = max(enso_q)
@@ -120,6 +123,11 @@ FORECAST_MC_SEED = 20260531
 FORECAST_MC_METHOD = "beta_q_random_walk_monte_carlo"
 FORECAST_MC_BAND_METHOD = "mean_plus_minus_one_std"
 FORECAST_MC_INTERVAL_LABEL = "+/- 1 standard deviation"
+FORECAST_COEFF_METHOD_WINDOWS = {
+    "last": 1,
+    "avg4": 4,
+    "avg8": 8,
+}
 # Legacy single-scenario output dirs (mean); multi-scenario uses _scenario_output_dirs().
 OUTPUT_DIR = Path("Dash_Output/forecast")
 OUTPUT_DIR_KF_TRACK = Path("Dash_Output/forecast_kf_track")
@@ -179,37 +187,92 @@ FORECAST_TARGET_QUARTERS = _all_forecast_target_quarters()
 
 def _panel_exog_history() -> pd.DataFrame:
     """Load unique quarterly exogenous values from the panel when available."""
+    cols = ["ENSO", "OIL_YoY", "IOD"]
     try:
-        raw = pd.read_csv(gp.PATH, usecols=["quarter", "ENSO", "COMMODITY_YoY"])
+        raw = pd.read_csv(gp.PATH, usecols=["quarter"] + cols)
     except Exception as exc:
         print(f"[WARN] could not load panel exogenous history from {gp.PATH}: {exc}")
-        return pd.DataFrame(columns=["quarter", "ENSO", "COMMODITY_YoY"])
+        return pd.DataFrame(columns=["quarter"] + cols)
     raw["quarter"] = pd.to_datetime(raw["quarter"]).dt.to_period("Q").dt.to_timestamp()
     hist = (
-        raw.groupby("quarter", as_index=False)[["ENSO", "COMMODITY_YoY"]]
+        raw.groupby("quarter", as_index=False)[cols]
         .first()
         .sort_values("quarter")
     )
     return hist
 
 
+def _oil_yoy_history() -> pd.DataFrame:
+    """Brent quarterly YoY from the source oil CSV, including forecast-period rows."""
+    oil_path = _ROOT / "analysis" / "Brent_Crude_Oil_Spot_Price.csv"
+    price_col = "Brent Crude Oil Spot Price dollars per barrel"
+    try:
+        raw = pd.read_csv(oil_path)
+    except Exception as exc:
+        print(f"[WARN] could not load oil history from {oil_path}: {exc}")
+        return pd.DataFrame(columns=["quarter", "OIL_YoY"])
+
+    q = raw["Quarter"].astype(str).str.extract(r"Q([1-4])\s+(\d{4})")
+    raw = raw.loc[~q.isna().any(axis=1)].copy()
+    q = q.loc[raw.index]
+    raw["quarter"] = [
+        pd.Period(year=int(year), quarter=int(quarter), freq="Q").to_timestamp()
+        for quarter, year in zip(q[0], q[1])
+    ]
+    raw["oil_price"] = pd.to_numeric(raw[price_col], errors="coerce")
+    oil = (
+        raw.dropna(subset=["oil_price"])
+        .sort_values("quarter")
+        .groupby("quarter", as_index=False)["oil_price"]
+        .mean()
+    )
+    oil["OIL_YoY"] = oil["oil_price"].pct_change(4)
+    return oil[["quarter", "OIL_YoY"]]
+
+
+def _iod_history() -> pd.DataFrame:
+    """IOD quarterly index from the merged screenshot CSV."""
+    iod_path = _ROOT / "analysis" / "validation" / "enso_quarterly_merged_with_screenshot.csv"
+    try:
+        raw = pd.read_csv(iod_path)
+    except Exception as exc:
+        print(f"[WARN] could not load IOD history from {iod_path}: {exc}")
+        return pd.DataFrame(columns=["quarter", "IOD"])
+    if "quarter" not in raw.columns or "index" not in raw.columns:
+        print(f"[WARN] IOD history missing quarter/index columns: {iod_path}")
+        return pd.DataFrame(columns=["quarter", "IOD"])
+    raw["quarter"] = raw["quarter"].astype(str).str.strip().map(
+        lambda q: pd.Period(q, freq="Q").to_timestamp()
+    )
+    raw["IOD"] = pd.to_numeric(raw["index"], errors="coerce")
+    return (
+        raw.dropna(subset=["IOD"])
+        .sort_values("quarter")
+        .groupby("quarter", as_index=False)["IOD"]
+        .mean()
+    )
+
+
 def build_forecast_exo_df(
     enso_map: dict[str, float] | None = None,
-    commodity_map: dict[str, float] | None = None,
     target_quarters: list[pd.Timestamp] | None = None,
 ) -> pd.DataFrame:
     """Build exogenous panel, preferring actual panel values before forecast values."""
     enso_map = enso_map or FORECAST_ENSO_MEAN
-    commodity_map = commodity_map or FORECAST_COMMODITY
 
     enso_s = {_period_ts(k): float(v) for k, v in enso_map.items()}
-    comm_s = {_quarter_start(pd.to_datetime(k)): float(v) for k, v in commodity_map.items()}
     exog_hist = _panel_exog_history()
     enso_actual = dict(
         zip(exog_hist["quarter"], pd.to_numeric(exog_hist["ENSO"], errors="coerce"))
     )
-    comm_actual = dict(
-        zip(exog_hist["quarter"], pd.to_numeric(exog_hist["COMMODITY_YoY"], errors="coerce"))
+    oil_panel_actual = dict(
+        zip(exog_hist["quarter"], pd.to_numeric(exog_hist["OIL_YoY"], errors="coerce"))
+    )
+    oil_hist = _oil_yoy_history()
+    oil_source_actual = dict(zip(oil_hist["quarter"], pd.to_numeric(oil_hist["OIL_YoY"], errors="coerce")))
+    oil_actual = dict(oil_panel_actual)
+    oil_actual.update(
+        oil_source_actual
     )
 
     if target_quarters is None:
@@ -221,26 +284,192 @@ def build_forecast_exo_df(
     for tq in target_quarters:
         zq = (tq.to_period("Q") - 1).to_timestamp()
         enso_val = enso_actual.get(tq, np.nan)
-        comm_val = comm_actual.get(zq, np.nan)
+        oil_val = oil_actual.get(tq, np.nan)
         enso_source = "panel" if np.isfinite(enso_val) else "forecast"
-        comm_source = "panel" if np.isfinite(comm_val) else "forecast"
+        if np.isfinite(oil_panel_actual.get(tq, np.nan)):
+            oil_source = "panel"
+        elif np.isfinite(oil_source_actual.get(tq, np.nan)):
+            oil_source = "oil_csv"
+        else:
+            oil_source = "missing"
         rows.append(
             {
                 "target_quarter": tq,
                 "exo_quarter": zq,
-                # ENSO is keyed by target quarter; COMMODITY is used with lag t-1.
                 "ENSO": enso_val if enso_source == "panel" else enso_s.get(tq, np.nan),
-                "COMMODITY_YoY": comm_val if comm_source == "panel" else comm_s.get(zq, np.nan),
+                "OIL_YoY": oil_val,
                 "ENSO_source": enso_source,
-                "COMMODITY_YoY_source": comm_source,
+                "OIL_YoY_source": oil_source,
             }
         )
     out = pd.DataFrame(rows).sort_values("target_quarter").reset_index(drop=True)
-    if out[["ENSO", "COMMODITY_YoY"]].isna().any().any():
-        missing = out[out[["ENSO", "COMMODITY_YoY"]].isna().any(axis=1)]
-        print("[WARN] forecast exo missing values for some lags:")
-        print(missing.to_string(index=False))
     return out
+
+
+# -----------------------------------------------------------------------------
+# External-variable diagnostic specs. No generic commodity index is included.
+# HeatDry comes from analysis/yield_climate_total.csv via
+# analysis/build_yield_climate_merge.py (crop-weighted heat/dryness stress
+# index and its YoY change). No 10-year-mean fallback for now -- raw panel
+# values only (yield_climate_total.csv already extends through 2027Q4 for
+# all 12 core countries, so a missing quarter should be rare/real).
+# -----------------------------------------------------------------------------
+CLIMATE_TOGGLE_VARS = ["ENSO", "IOD", "HeatDry", "OIL_YoY"]
+
+
+def climate_variant_key(exo_vars_subset) -> str:
+    order = {v: i for i, v in enumerate(CLIMATE_TOGGLE_VARS)}
+    return "+".join(sorted(exo_vars_subset, key=lambda v: order[v]))
+
+
+def build_forecast_exo_df_multi(
+    exo_vars: list[str],
+    country: str,
+    *,
+    enso_map: dict[str, float] | None = None,
+    target_quarters: list[pd.Timestamp] | None = None,
+) -> pd.DataFrame:
+    """Generalized exogenous-forecast builder for the climate-variant toggle
+    ENSO/IOD: prefer the real panel value, else the external forecast/source
+    value when available. HeatDry/OIL_YoY: raw panel/source value only -- no fallback.
+    """
+    enso_map = enso_map or FORECAST_ENSO_MEAN
+    enso_s = {_period_ts(k): float(v) for k, v in enso_map.items()}
+    oil_hist = _oil_yoy_history()
+    oil_actual = dict(zip(oil_hist["quarter"], pd.to_numeric(oil_hist["OIL_YoY"], errors="coerce")))
+    iod_hist = _iod_history()
+    iod_source_actual = dict(zip(iod_hist["quarter"], pd.to_numeric(iod_hist["IOD"], errors="coerce")))
+
+    all_cols = ["ENSO", "IOD", "HeatDry", "OIL_YoY"]
+    try:
+        raw = pd.read_csv(gp.PATH, usecols=["country", "quarter"] + all_cols)
+    except Exception as exc:
+        print(f"[WARN] could not load panel exogenous history from {gp.PATH}: {exc}")
+        raw = pd.DataFrame(columns=["country", "quarter"] + all_cols)
+    raw["quarter"] = pd.to_datetime(raw["quarter"]).dt.to_period("Q").dt.to_timestamp()
+    hist = (
+        raw.loc[raw["country"] == country]
+        .groupby("quarter", as_index=False)[all_cols]
+        .first()
+        .set_index("quarter")
+    )
+
+    if target_quarters is None:
+        target_quarters = list(FORECAST_TARGET_QUARTERS)
+    else:
+        target_quarters = [_period_ts(q) for q in target_quarters]
+
+    def _actual(var: str, q: pd.Timestamp) -> float:
+        if var not in hist.columns or q not in hist.index:
+            return np.nan
+        return float(pd.to_numeric(pd.Series([hist.loc[q, var]]), errors="coerce").iloc[0])
+
+    rows = []
+    for tq in target_quarters:
+        row = {"target_quarter": tq, "exo_quarter": tq}
+        for var in exo_vars:
+            if var == "ENSO":
+                actual = _actual("ENSO", tq)
+                source = "panel" if np.isfinite(actual) else "forecast"
+                row["ENSO"] = actual if source == "panel" else enso_s.get(tq, np.nan)
+                row["ENSO_source"] = source
+            elif var == "IOD":
+                actual = _actual("IOD", tq)
+                if np.isfinite(actual):
+                    row["IOD"] = actual
+                    row["IOD_source"] = "panel"
+                else:
+                    row["IOD"] = iod_source_actual.get(tq, np.nan)
+                    row["IOD_source"] = "iod_csv" if np.isfinite(row["IOD"]) else "missing"
+            else:  # HeatDry / OIL_YoY -- raw panel/source data only, no fallback
+                actual = oil_actual.get(tq, np.nan) if var == "OIL_YoY" else _actual(var, tq)
+                row[var] = actual
+                source = "oil_csv" if var == "OIL_YoY" and np.isfinite(actual) else "panel"
+                row[f"{var}_source"] = source if np.isfinite(actual) else "missing"
+        rows.append(row)
+    return pd.DataFrame(rows).sort_values("target_quarter").reset_index(drop=True)
+
+
+# Test requested climate/oil specifications; do not include the generic commodity index.
+CLIMATE_VARIANT_COMBOS: list[tuple[str, ...]] = [
+    ("ENSO",),
+    ("ENSO", "OIL_YoY"),
+    ("ENSO", "HeatDry"),
+    ("ENSO", "HeatDry", "OIL_YoY"),
+    ("OIL_YoY", "HeatDry"),
+    ("IOD",),
+    ("IOD", "OIL_YoY"),
+    ("IOD", "HeatDry"),
+    ("IOD", "HeatDry", "OIL_YoY"),
+]
+
+
+def run_forecast_all_climate_variants(
+    countries: list[str] | None = None,
+    *,
+    path: str | None = None,
+    max_em_iter: int = MAX_EM_ITER,
+) -> dict:
+    """Precompute EM + forecast for each external-variable diagnostic spec.
+    EM is refit once per (country, spec) because each EXO set has a different
+    regressor matrix. ENSO specs have mean/min/max ENSO scenarios; non-ENSO
+    specs use one observed/source exogenous path.
+    """
+    path = path or gp.PATH
+    countries = countries or list(DEFAULT_COUNTRIES)
+
+    variants: dict = {}
+    for combo in CLIMATE_VARIANT_COMBOS:
+        key = climate_variant_key(combo)
+        exo_vars = list(combo)
+        has_enso = "ENSO" in combo
+        scenarios = ["mean", "min", "max"] if has_enso else ["observed"]
+        variants[key] = {"exo_vars": exo_vars, "scenarios": {}}
+
+        for scenario in scenarios:
+            enso_map = FORECAST_ENSO_SCENARIOS.get(scenario, FORECAST_ENSO_MEAN) if has_enso else None
+            bundle: dict = {
+                "config": {
+                    "exo_vars": exo_vars,
+                    "enso_scenario": scenario if has_enso else None,
+                    "forecast_target_quarters": [pd.Timestamp(x).isoformat() for x in FORECAST_TARGET_QUARTERS],
+                },
+                "per_country": {},
+            }
+            for country in countries:
+                prep, res = gp._run_kf_em_cached(
+                    PATH=path,
+                    country=country,
+                    COL_COUNTRY=gp.COL_COUNTRY,
+                    COL_TIME=gp.COL_TIME,
+                    ENDO=gp.ENDO,
+                    EXO=exo_vars,
+                    lags=gp.lags,
+                    min_T=gp.lags + 5,
+                    max_em_iter=max_em_iter,
+                    exo_mode="all",
+                )
+                if prep is None or res is None:
+                    print(f"[SKIP] {country} [{key}/{scenario}]: no EM result")
+                    continue
+                exo_fc = build_forecast_exo_df_multi(
+                    exo_vars,
+                    country,
+                    enso_map=enso_map,
+                    target_quarters=FORECAST_TARGET_QUARTERS,
+                )
+                fc = forecast_country_from_em(prep, res, exo_fc, country=country, scenario_name=scenario)
+                if fc is None:
+                    print(f"[SKIP] {country} [{key}/{scenario}]: forecast failed")
+                    continue
+                fc["enso_scenario"] = scenario if has_enso else None
+                fc["iod_scenario"] = None if has_enso else scenario
+                fc["climate_variant"] = key
+                bundle["per_country"][country] = fc
+            variants[key]["scenarios"][scenario] = bundle
+            print(f"[OK] variant={key} scenario={scenario}: {len(bundle['per_country'])}/{len(countries)} countries")
+
+    return variants
 
 
 def _marginal_bounds_from_S(
@@ -604,6 +833,29 @@ def _build_H(Y_lags: list[np.ndarray], z_row: np.ndarray, mY: int, m: int, lags:
     return H
 
 
+def _truncate_to_complete_required_exog(
+    exo_fc: pd.DataFrame,
+    required_cols: list[str],
+) -> pd.DataFrame:
+    """Keep the consecutive forecast prefix with all required exogenous values."""
+    if exo_fc.empty:
+        return exo_fc.copy()
+    out = exo_fc.sort_values("target_quarter").reset_index(drop=True).copy()
+    if not required_cols:
+        return out
+    missing_cols = [c for c in required_cols if c not in out.columns]
+    if missing_cols:
+        return out.iloc[0:0].copy()
+    complete = np.ones(len(out), dtype=bool)
+    for col in required_cols:
+        complete &= np.isfinite(pd.to_numeric(out[col], errors="coerce").to_numpy(float))
+    if not complete.any() or not complete[0]:
+        return out.iloc[0:0].copy()
+    first_missing = np.where(~complete)[0]
+    end = int(first_missing[0]) if len(first_missing) else len(out)
+    return out.iloc[:end].reset_index(drop=True)
+
+
 def forecast_country_from_em(
     prep: dict,
     res: dict,
@@ -656,6 +908,7 @@ def forecast_country_from_em(
     exo_fc = exo_fc[
         exo_fc["target_quarter"].apply(lambda x: pd.Timestamp(x).to_period("Q") > last_hist_p)
     ].reset_index(drop=True)
+    exo_fc = _truncate_to_complete_required_exog(exo_fc, EXO_use)
     if exo_fc.empty:
         return None
 
@@ -669,11 +922,112 @@ def forecast_country_from_em(
     for j, col in enumerate(EXO_use):
         raw = pd.to_numeric(exo_fc[col], errors="coerce").to_numpy(float)
         z_fc[:, j] = (raw - mu_x[j]) / sd_x[j]
-    z_fc = np.where(np.isfinite(z_fc), z_fc, 0.0)
+    if not np.isfinite(z_fc).all():
+        return None
 
     y_buf0 = [Yd[last_t - i, :].copy() for i in range(1, lags + 1)]
     seed_key = f"{country}:{scenario_name}"
     mc_seed = FORECAST_MC_SEED + sum(ord(ch) for ch in seed_key)
+
+    def _zero_driver_counterfactual(driver: str) -> np.ndarray | None:
+        if driver not in EXO_use:
+            return None
+        j = EXO_use.index(driver)
+        z0 = z_fc.copy()
+        # The counterfactual is defined in raw driver units. In standardized
+        # model space, raw zero is (0 - in-sample mean) / in-sample sd.
+        z0[:, j] = (0.0 - mu_x[j]) / sd_x[j]
+        return z0
+
+    z_fc_enso0 = _zero_driver_counterfactual("ENSO")
+    z_fc_iod0 = _zero_driver_counterfactual("IOD")
+    heat_var = "HeatDry" if "HeatDry" in EXO_use else None
+    z_fc_heat0 = _zero_driver_counterfactual(heat_var) if heat_var is not None else None
+
+    def _forecast_method_pack(
+        method: str,
+        theta_method: np.ndarray,
+        theta_method_raw: np.ndarray,
+        stability: dict,
+    ) -> dict:
+        y_m, y_lo_m, y_hi_m = _roll_kf_forecast(
+            theta0=theta_method,
+            P0=P,
+            Q=Q,
+            R=R,
+            y_buf0=y_buf0,
+            z_fc=z_fc,
+            mY=mY,
+            m=m,
+            lags=lags,
+            z_ci=z_ci,
+            eps=eps,
+            with_ci=True,
+            mc_seed=mc_seed,
+        )
+        y_enso0_m = None
+        if z_fc_enso0 is not None:
+            y_enso0_m, _, _ = _roll_kf_forecast(
+                theta0=theta_method,
+                P0=P,
+                Q=Q,
+                R=R,
+                y_buf0=y_buf0,
+                z_fc=z_fc_enso0,
+                mY=mY,
+                m=m,
+                lags=lags,
+                z_ci=z_ci,
+                eps=eps,
+                with_ci=False,
+            )
+        y_iod0_m = None
+        if z_fc_iod0 is not None:
+            y_iod0_m, _, _ = _roll_kf_forecast(
+                theta0=theta_method,
+                P0=P,
+                Q=Q,
+                R=R,
+                y_buf0=y_buf0,
+                z_fc=z_fc_iod0,
+                mY=mY,
+                m=m,
+                lags=lags,
+                z_ci=z_ci,
+                eps=eps,
+                with_ci=False,
+            )
+        y_heat0_m = None
+        if z_fc_heat0 is not None:
+            y_heat0_m, _, _ = _roll_kf_forecast(
+                theta0=theta_method,
+                P0=P,
+                Q=Q,
+                R=R,
+                y_buf0=y_buf0,
+                z_fc=z_fc_heat0,
+                mY=mY,
+                m=m,
+                lags=lags,
+                z_ci=z_ci,
+                eps=eps,
+                with_ci=False,
+            )
+        return {
+            "method": method,
+            "theta_window": FORECAST_COEFF_METHOD_WINDOWS[method],
+            "theta": np.asarray(theta_method, dtype=float).ravel(),
+            "theta_raw": np.asarray(theta_method_raw, dtype=float).ravel(),
+            "y_hat": y_m,
+            "y_hat_enso0": y_enso0_m,
+            "y_hat_iod0": y_iod0_m,
+            "y_hat_heat0": y_heat0_m,
+            "heat0_var": heat_var,
+            "y_lower": y_lo_m,
+            "y_upper": y_hi_m,
+            "forecast_stability": stability,
+        }
+
     y_hat, y_lo, y_hi = _roll_kf_forecast(
         theta0=theta,
         P0=P,
@@ -691,18 +1045,7 @@ def forecast_country_from_em(
     )
 
     y_hat_enso0 = None
-    if "ENSO" in EXO_use:
-        enso_j = EXO_use.index("ENSO")
-        z_fc_enso0 = z_fc.copy()
-        # ENSO=0 is defined in raw ENSO units. In standardized model space this
-        # is (0 - mean_enso) / sd_enso, not z=0. Keep observed/panel ENSO values
-        # before the forecast scenario starts; set ENSO to zero only for rows
-        # marked as forecasted ENSO.
-        if "ENSO_source" in exo_fc.columns:
-            enso0_mask = exo_fc["ENSO_source"].astype(str).eq("forecast").to_numpy()
-        else:
-            enso0_mask = np.ones(len(z_fc_enso0), dtype=bool)
-        z_fc_enso0[enso0_mask, enso_j] = (0.0 - mu_x[enso_j]) / sd_x[enso_j]
+    if z_fc_enso0 is not None:
         y_hat_enso0, _, _ = _roll_kf_forecast(
             theta0=theta,
             P0=P,
@@ -717,6 +1060,83 @@ def forecast_country_from_em(
             eps=eps,
             with_ci=False,
         )
+
+    y_hat_iod0 = None
+    if z_fc_iod0 is not None:
+        y_hat_iod0, _, _ = _roll_kf_forecast(
+            theta0=theta,
+            P0=P,
+            Q=Q,
+            R=R,
+            y_buf0=y_buf0,
+            z_fc=z_fc_iod0,
+            mY=mY,
+            m=m,
+            lags=lags,
+            z_ci=z_ci,
+            eps=eps,
+            with_ci=False,
+        )
+
+    y_hat_heat0 = None
+    if z_fc_heat0 is not None:
+        y_hat_heat0, _, _ = _roll_kf_forecast(
+            theta0=theta,
+            P0=P,
+            Q=Q,
+            R=R,
+            y_buf0=y_buf0,
+            z_fc=z_fc_heat0,
+            mY=mY,
+            m=m,
+            lags=lags,
+            z_ci=z_ci,
+            eps=eps,
+            with_ci=False,
+        )
+
+    forecast_methods = {
+        "last": {
+            "method": "last",
+            "theta_window": 1,
+            "theta": theta.ravel(),
+            "theta_raw": theta_raw.ravel(),
+            "y_hat": y_hat,
+            "y_hat_enso0": y_hat_enso0,
+            "y_hat_iod0": y_hat_iod0,
+            "y_hat_heat0": y_hat_heat0,
+            "heat0_var": heat_var,
+            "y_lower": y_lo,
+            "y_upper": y_hi,
+            "forecast_stability": forecast_stability,
+        }
+    }
+    theta_est = np.asarray(res.get("theta_est"), dtype=float)
+    theta_trace = None
+    theta_trace_quarters = None
+    if theta_est.ndim == 2 and theta_est.shape[1] == theta_raw.size and len(theta_est) == len(valid):
+        theta_trace_mask = valid & np.isfinite(theta_est).all(axis=1)
+        theta_valid = theta_est[theta_trace_mask]
+        # Full in-sample theta trajectory (not just "last"/"avg4"/"avg8"), kept
+        # so forecasts can be reconstructed/re-derived later without rerunning EM.
+        theta_trace = theta_valid
+        theta_trace_quarters = prep["quarters"][theta_trace_mask]
+        for method, window in FORECAST_COEFF_METHOD_WINDOWS.items():
+            if method == "last" or len(theta_valid) < window:
+                continue
+            theta_method_raw = theta_valid[-window:].mean(axis=0).reshape(-1, 1)
+            theta_method, method_stability = _stabilize_theta_for_forecast(
+                theta_method_raw,
+                mY=mY,
+                m=m,
+                lags=lags,
+            )
+            forecast_methods[method] = _forecast_method_pack(
+                method,
+                theta_method,
+                theta_method_raw,
+                method_stability,
+            )
 
     fc_q = pd.to_datetime([_quarter_start(x) for x in exo_fc["target_quarter"].values])
     if "ENSO_source" in exo_fc.columns:
@@ -754,8 +1174,12 @@ def forecast_country_from_em(
         "y_sd": sd_y,
         "y_hat": y_hat,
         "y_hat_enso0": y_hat_enso0,
+        "y_hat_iod0": y_hat_iod0,
+        "y_hat_heat0": y_hat_heat0,
+        "heat0_var": heat_var,
         "y_lower": y_lo,
         "y_upper": y_hi,
+        "forecast_methods": forecast_methods,
         "forecast_uncertainty": {
             "method": FORECAST_MC_METHOD,
             "simulations": FORECAST_MC_SIMULATIONS,
@@ -773,6 +1197,11 @@ def forecast_country_from_em(
             "applies_to_enso_source": "forecast",
             "keeps_panel_enso_before_forecast_start": True,
         },
+        "heat0_baseline": {
+            "raw_value": 0.0,
+            "var": heat_var,
+            "applies_to_source_other_than": "panel",
+        } if heat_var is not None else None,
         "kf_insample": kf_insample,
         "varx_insample": varx_insample,
         "varx_y_hat": varx_y_hat,
@@ -780,6 +1209,8 @@ def forecast_country_from_em(
         "varx_y_upper": varx_y_hi,
         "theta_last": theta.ravel(),
         "theta_last_raw": theta_raw.ravel(),
+        "theta_trace": theta_trace,  # full in-sample filtered theta trajectory (valid rows only)
+        "theta_trace_quarters": theta_trace_quarters,
         "forecast_stability": forecast_stability,
         "P_last": P,
         "Q": Q,
@@ -971,7 +1402,7 @@ def plot_forecast_paths(
         d = per.get(country)
         if not d:
             continue
-        if d.get("y_hat_enso0") is None and not warned_enso0:
+        if "ENSO" in d.get("EXO_use", []) and d.get("y_hat_enso0") is None and not warned_enso0:
             print("[WARN] y_hat_enso0 missing in bundle; rerun forecast (not --plot-only) to draw red line")
             warned_enso0 = True
         endo = d["ENDO_use"]
@@ -1264,7 +1695,9 @@ def _backfill_track_data(prep: dict, res: dict, d: dict) -> None:
     )
     if need_varx and d.get("exo_forecast") is not None:
         d["varx_insample"] = _varx_insample_track(prep, kf_mask=kf_mask, z_ci=z_ci)
-        exo_fc = d["exo_forecast"]
+        exo_fc = _truncate_to_complete_required_exog(d["exo_forecast"], list(prep["EXO_use"]))
+        if exo_fc.empty:
+            return
         g = prep["g"]
         EXO_use = list(prep["EXO_use"])
         mu_x = np.nanmean(g[EXO_use].to_numpy(float), axis=0)
@@ -1274,7 +1707,8 @@ def _backfill_track_data(prep: dict, res: dict, d: dict) -> None:
         for j, col in enumerate(EXO_use):
             raw = pd.to_numeric(exo_fc[col], errors="coerce").to_numpy(float)
             z_fc[:, j] = (raw - mu_x[j]) / sd_x[j]
-        z_fc = np.where(np.isfinite(z_fc), z_fc, 0.0)
+        if not np.isfinite(z_fc).all():
+            return
         vy, vlo, vhi = _varx_multistep_forecast(prep, last_t=last_t, z_fc=z_fc, z_ci=z_ci)
         d["varx_y_hat"] = vy
         d["varx_y_lower"] = vlo
@@ -1356,7 +1790,9 @@ def main(*, plot_only: bool = False) -> dict:
         return saved
 
     scenario_bundles = run_forecast_all_enso_scenarios()
-    saved = {"scenarios": scenario_bundles}
+    climate_variants = run_forecast_all_climate_variants()
+    gp.print_numerical_diagnostics()
+    saved = {"scenarios": scenario_bundles, "climate_variants": climate_variants}
     save_forecast_pickle(saved)
     for scenario, bundle in scenario_bundles.items():
         _plot_bundle_all_charts(bundle, scenario=scenario)

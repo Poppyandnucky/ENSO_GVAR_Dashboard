@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import pickle
 from pathlib import Path
 from typing import Callable
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import plotly.express as px
+import plotly.graph_objects as go
 import pydeck as pdk
 import streamlit as st
 
@@ -28,6 +29,9 @@ MONTH_LABELS = {
 
 PRODUCTS = {
     "Heat": {
+        # temp_NMME.csv is the full global grid (lat -90..90, lon 0..359);
+        # Heat.csv was a regional crop of the same values (lat -56..35,
+        # lon -118..141) with each month shifted one column over.
         "file": "temp_NMME.csv",
         "label": "Heat",
         "description": "Predicted monthly temperature anomaly.",
@@ -61,6 +65,24 @@ PRODUCTS = {
 
 CLIMATE_PRODUCTS = ["Heat", "Moisture"]
 WEIGHT_PRODUCTS = ["Population", "H_Maize", "H_Rice", "H_Soya", "H_Wheat"]
+MONTHLY_ENSO_CANDIDATES = [
+    "models/output/Geo_Lat/monthly_enso.csv",
+    "models/output/monthly_enso.csv",
+    "data/monthly_enso.csv",
+    "data/nina34.csv",
+    "data/climate_indices.csv",
+]
+FORECAST_PICKLE_CANDIDATES = [
+    "Dash_Input/gvar_forecast_results.pkl",
+    "analysis/Dash_Input/gvar_forecast_results.pkl",
+]
+ENSO_VALUE_COLUMNS = [
+    "NINO3+4",
+    "Nino Anom 3.4 Index  using ersstv5 from CPC  missing value -99.99 https://psl.noaa.gov/data/timeseries/month/",
+    "ENSO",
+    "NINO34",
+    "NINO3.4",
+]
 COUNTRY_NAME_TO_ISO = {
     "Brazil": "BRA",
     "Chile": "CHL",
@@ -87,6 +109,18 @@ def _display_lon(values: pd.Series) -> pd.Series:
 
 def _month_timestamp(month: str) -> pd.Timestamp:
     return pd.Timestamp(f"{MONTH_LABELS[month]}-01")
+
+
+def _source_mtime_state(paths: list[Path]) -> tuple[tuple[str, float], ...]:
+    return tuple((str(p), _file_mtime(p)) for p in paths if p.exists())
+
+
+def _event_months() -> pd.DataFrame:
+    months = pd.DataFrame(
+        {"target_month": [_month_timestamp(month) for month in MONTH_ORDER]}
+    )
+    months["target_quarter"] = months["target_month"].dt.to_period("Q").dt.to_timestamp()
+    return months
 
 
 @st.cache_data(show_spinner=False)
@@ -125,9 +159,11 @@ def _load_country_boundaries(
     shapefile_mtime: float,
     countries: tuple[str, ...],
 ) -> dict:
+    """countries=() means "all countries" (no ISO3 filter)."""
     del shapefile_mtime
     world = gpd.read_file(shapefile_path).to_crs("EPSG:4326")
-    world = world[world["ISO_A3"].isin(countries)].copy()
+    if countries:
+        world = world[world["ISO_A3"].isin(countries)].copy()
     return world[["ISO_A3", "NAME", "geometry"]].__geo_interface__
 
 
@@ -168,6 +204,92 @@ def _find_population_grid(geolat_dir: Path) -> Path | None:
         geolat_dir / "population" / "nmme_population_weight_grid.csv",
     ]
     return next((path for path in candidates if path.is_file()), None)
+
+
+@st.cache_data(show_spinner=False)
+def _load_monthly_enso(repo_root: str, source_state: tuple[tuple[str, float], ...]) -> pd.DataFrame:
+    del source_state
+    root = Path(repo_root)
+    for rel_path in MONTHLY_ENSO_CANDIDATES:
+        path = root / rel_path
+        if not path.exists():
+            continue
+        df = pd.read_csv(path)
+        df.columns = [str(c).strip() for c in df.columns]
+        date_col = next((c for c in ["date", "Date", "month", "Month"] if c in df.columns), None)
+        value_col = next((c for c in ENSO_VALUE_COLUMNS if c in df.columns), None)
+        if date_col is None or value_col is None:
+            continue
+        out = df[[date_col, value_col]].copy()
+        out["target_month"] = pd.to_datetime(out[date_col], errors="coerce").dt.to_period("M").dt.to_timestamp()
+        out["enso"] = pd.to_numeric(out[value_col], errors="coerce")
+        out = out.replace({"enso": {-9999.0: np.nan, -99.99: np.nan}})
+        out = out.dropna(subset=["target_month", "enso"])
+        if out.empty:
+            continue
+        out = (
+            out[["target_month", "enso"]]
+            .groupby("target_month", as_index=False)["enso"]
+            .mean()
+            .sort_values("target_month")
+        )
+        out["enso_source"] = path.name
+        return out
+    return pd.DataFrame(columns=["target_month", "enso"])
+
+
+@st.cache_data(show_spinner=False)
+def _load_saved_forecast_enso(repo_root: str, source_state: tuple[tuple[str, float], ...]) -> pd.DataFrame:
+    del source_state
+    root = Path(repo_root)
+    for rel_path in FORECAST_PICKLE_CANDIDATES:
+        path = root / rel_path
+        if not path.exists():
+            continue
+        try:
+            with path.open("rb") as f:
+                bundle = pickle.load(f)
+        except Exception:
+            continue
+        scenarios = bundle.get("scenarios", {}) if isinstance(bundle, dict) else {}
+        scenario = scenarios.get("mean") or next(iter(scenarios.values()), {})
+        exo = scenario.get("exo_forecast") if isinstance(scenario, dict) else None
+        if not isinstance(exo, pd.DataFrame) or "target_quarter" not in exo or "ENSO" not in exo:
+            continue
+        q = exo[["target_quarter", "ENSO"]].copy()
+        q["target_quarter"] = pd.to_datetime(q["target_quarter"], errors="coerce").dt.to_period("Q").dt.to_timestamp()
+        q["enso"] = pd.to_numeric(q["ENSO"], errors="coerce")
+        q = q.dropna(subset=["target_quarter", "enso"])
+        if q.empty:
+            continue
+        out = _event_months().merge(q[["target_quarter", "enso"]], on="target_quarter", how="left")
+        out = out.dropna(subset=["enso"])[["target_month", "enso"]]
+        out["enso_source"] = f"{path.name} mean scenario"
+        return out.sort_values("target_month")
+    return pd.DataFrame(columns=["target_month", "enso", "enso_source"])
+
+
+def _event_enso_series(repo_root: Path) -> pd.DataFrame:
+    monthly_sources = [repo_root / p for p in MONTHLY_ENSO_CANDIDATES]
+    forecast_sources = [repo_root / p for p in FORECAST_PICKLE_CANDIDATES]
+    monthly = _load_monthly_enso(str(repo_root), _source_mtime_state(monthly_sources))
+    forecast = _load_saved_forecast_enso(str(repo_root), _source_mtime_state(forecast_sources))
+    event_months = _event_months()[["target_month"]]
+
+    monthly = event_months.merge(monthly, on="target_month", how="inner")
+    if monthly.empty:
+        return forecast
+    if forecast.empty:
+        return monthly
+
+    out = monthly.copy()
+    missing_months = event_months[
+        ~event_months["target_month"].isin(out["target_month"])
+    ]
+    forecast_fill = missing_months.merge(forecast, on="target_month", how="inner")
+    if not forecast_fill.empty:
+        out = pd.concat([out, forecast_fill], ignore_index=True)
+    return out.sort_values("target_month")
 
 
 @st.cache_data(show_spinner=False)
@@ -243,8 +365,18 @@ def _build_map(
     reverse_colors: bool = False,
 ) -> pdk.Deck:
     colored = _color_points(points, reverse_colors=reverse_colors)
-    center_lat = float(colored["lat"].mean()) if not colored.empty else 0.0
-    center_lon = float(colored["plot_lon"].mean()) if not colored.empty else 0.0
+    if not colored.empty:
+        lat_min, lat_max = float(colored["lat"].min()), float(colored["lat"].max())
+        lon_min, lon_max = float(colored["plot_lon"].min()), float(colored["plot_lon"].max())
+        center_lat = (lat_min + lat_max) / 2
+        center_lon = (lon_min + lon_max) / 2
+        # Fit the whole bounding box in view, not just center on the data's
+        # mean position -- a fixed zoom level previously showed only part of
+        # the available grid when its extent was wide.
+        span = max(lat_max - lat_min, lon_max - lon_min, 1.0)
+        zoom = max(0.0, np.log2(360.0 / span) - 0.3)
+    else:
+        center_lat, center_lon, zoom = 0.0, 0.0, 1.5
 
     point_layer = pdk.Layer(
         "ScatterplotLayer",
@@ -269,7 +401,7 @@ def _build_map(
     )
     return pdk.Deck(
         layers=[point_layer, boundary_layer],
-        initial_view_state=pdk.ViewState(latitude=center_lat, longitude=center_lon, zoom=2.2, pitch=0),
+        initial_view_state=pdk.ViewState(latitude=center_lat, longitude=center_lon, zoom=zoom, pitch=0),
         map_style=pdk.map_styles.CARTO_LIGHT_NO_LABELS,
         tooltip={
             "html": (
@@ -405,21 +537,77 @@ def _country_timeseries_chart(
     selected_country: str,
     country_label_func: Callable[[str], str],
     title: str,
+    monthly_enso: pd.DataFrame | None = None,
 ):
     country_df = df[df["iso_a3"].astype(str).eq(selected_country)].copy()
     if country_df.empty:
         return None
     country_df["month_label"] = country_df["target_month"].dt.strftime("%Y-%m")
-    fig = px.line(
-        country_df,
-        x="target_month",
-        y="value",
-        markers=True,
-        title=f"{title}: {country_label_func(selected_country)}",
-        labels={"target_month": "Target month", "value": "Country weighted mean"},
-        hover_data={"month_label": True, "cells": True, "weight_sum": True, "target_month": False},
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=country_df["target_month"],
+            y=country_df["value"],
+            mode="lines+markers",
+            name="Weighted climate",
+            line=dict(color="#1f77b4", width=2),
+            marker=dict(color="#1f77b4"),
+            customdata=np.stack(
+                [
+                    country_df["month_label"].to_numpy(),
+                    country_df["cells"].to_numpy(),
+                    country_df["weight_sum"].to_numpy(),
+                ],
+                axis=-1,
+            ),
+            hovertemplate=(
+                "Month: %{customdata[0]}<br>"
+                "Weighted mean: %{y:.3f}<br>"
+                "Mask cells: %{customdata[1]}<br>"
+                "Weight sum: %{customdata[2]:.3f}<extra></extra>"
+            ),
+        )
     )
-    fig.update_layout(height=320, margin=dict(l=20, r=20, t=55, b=35))
+    if monthly_enso is not None and not monthly_enso.empty:
+        min_month = country_df["target_month"].min()
+        max_month = country_df["target_month"].max()
+        enso = monthly_enso[
+            monthly_enso["target_month"].between(min_month, max_month)
+        ].copy()
+        if not enso.empty:
+            enso["month_label"] = enso["target_month"].dt.strftime("%Y-%m")
+            source_label = "ENSO"
+            if "enso_source" in enso.columns and enso["enso_source"].notna().any():
+                sources = enso["enso_source"].dropna().astype(str).unique().tolist()
+                source_label = "ENSO (" + ", ".join(sources[:2]) + (", ..." if len(sources) > 2 else "") + ")"
+            fig.add_trace(
+                go.Scatter(
+                    x=enso["target_month"],
+                    y=enso["enso"],
+                    mode="lines+markers",
+                    name=source_label,
+                    yaxis="y2",
+                    line=dict(color="#444444", width=1.8, dash="dot"),
+                    marker=dict(color="#444444", size=6),
+                    customdata=np.stack(
+                        [
+                            enso["month_label"].to_numpy(),
+                            enso.get("enso_source", pd.Series(["ENSO"] * len(enso))).astype(str).to_numpy(),
+                        ],
+                        axis=-1,
+                    ),
+                    hovertemplate="Month: %{customdata[0]}<br>ENSO: %{y:.2f}<br>Source: %{customdata[1]}<extra></extra>",
+                )
+            )
+    fig.update_layout(
+        title=f"{title}: {country_label_func(selected_country)}",
+        height=340,
+        margin=dict(l=20, r=50, t=55, b=45),
+        xaxis_title="Target month",
+        yaxis=dict(title="Country weighted mean"),
+        yaxis2=dict(title="ENSO", overlaying="y", side="right", showgrid=False),
+        legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="left", x=0),
+    )
     return fig
 
 
@@ -446,6 +634,13 @@ def render_el_nino_event_module(
         _file_mtime(shapefile),
         tuple(dashboard_countries),
     )
+    # This first section's gridded Heat/Moisture data already spans the full
+    # NMME model domain (not just the 12 study countries), so show all
+    # country borders here for a genuinely global map. "Weighted Climate
+    # Exposure" below is still limited to the 12 (it needs a per-country
+    # mask file, which only exists for those countries), so it keeps using
+    # `boundaries` unchanged.
+    boundaries_global = _load_country_boundaries(str(shapefile), _file_mtime(shapefile), tuple())
 
     st.subheader("Monthly Climate and Crop Fields")
     c1, c2 = st.columns([1.25, 1])
@@ -472,7 +667,7 @@ def render_el_nino_event_module(
         st.pydeck_chart(
             _build_map(
                 points,
-                boundaries,
+                boundaries_global,
                 PRODUCTS[product_id]["label"],
                 selected_month,
                 reverse_colors=(product_id == "Moisture"),
@@ -505,6 +700,7 @@ def render_el_nino_event_module(
 
     population_path = _find_population_grid(geolat_dir)
     population_mtime = _file_mtime(population_path) if population_path else 0.0
+    monthly_enso = _event_enso_series(repo_root)
     if weight_id == "Population" and population_path is None:
         st.warning(
             "Population weighting needs a processed `lat, lon, population` grid CSV under "
@@ -569,6 +765,7 @@ def render_el_nino_event_module(
         selected_country,
         country_label_func,
         f"{PRODUCTS[climate_id]['label']} weighted by {weight_id}",
+        monthly_enso=monthly_enso,
     )
     if chart is not None:
         st.plotly_chart(chart, width="stretch")
