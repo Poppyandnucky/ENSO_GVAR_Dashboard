@@ -376,7 +376,7 @@ def _build_map(
         # mean position -- a fixed zoom level previously showed only part of
         # the available grid when its extent was wide.
         span = max(lon_max - lon_min if fit_longitude_extent else max(lat_max - lat_min, lon_max - lon_min), 1.0)
-        zoom = max(0.0, np.log2(360.0 / span) + (0.25 if fit_longitude_extent else -0.3))
+        zoom = max(0.0, np.log2(360.0 / span) + (1.55 if fit_longitude_extent else -0.3))
     else:
         center_lat, center_lon, zoom = 0.0, 0.0, 1.5
 
