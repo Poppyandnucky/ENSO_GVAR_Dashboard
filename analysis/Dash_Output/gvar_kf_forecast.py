@@ -37,30 +37,33 @@ FORECAST_ENSO_MEAN = {
     "2025Q3": -0.6055,
     "2025Q4": -0.9034,
     "2026Q1": -0.6499,
-    "2026Q2": 0.4286,
+    "2026Q2": 0.49,
     "2026Q3": 1.7784,
     "2026Q4": 2.2875,
     "2027Q1": 1.8143,
+    "2027Q2": 1.61,
 }
 
 FORECAST_ENSO_MIN = {
     "2025Q3": -0.6055,
     "2025Q4": -0.9034,
     "2026Q1": -0.6499,
-    "2026Q2": 0.4286,
+    "2026Q2": 0.49,
     "2026Q3": 0.9385,
     "2026Q4": 1.4430,
     "2027Q1": 0.8575,
+    "2027Q2": 1.3,
 }
 
 FORECAST_ENSO_MAX = {
     "2025Q3": -0.6055,
     "2025Q4": -0.9034,
     "2026Q1": -0.6499,
-    "2026Q2": 0.4286,
+    "2026Q2": 0.49,
     "2026Q3": 2.0330,
     "2026Q4": 3.0678,
     "2027Q1": 2.2604,
+    "2027Q2": 2.3,
 }
 
 FORECAST_ENSO_SCENARIOS: dict[str, dict[str, float]] = {
@@ -72,6 +75,13 @@ FORECAST_ENSO_SCENARIOS: dict[str, dict[str, float]] = {
 FORECAST_ENSO = FORECAST_ENSO_MEAN
 
 EXTEND_TARGETS_TO_OIL_RANGE = True
+RAGGED_EDGE_FORECAST_INIT = True
+ENSO_FORECAST_OVERRIDE_QUARTERS = {
+    pd.Period("2026Q3", freq="Q").to_timestamp(),
+    pd.Period("2026Q4", freq="Q").to_timestamp(),
+    pd.Period("2027Q1", freq="Q").to_timestamp(),
+    pd.Period("2027Q2", freq="Q").to_timestamp(),
+}
 
 
 def _quarter_start(ts) -> pd.Timestamp:
@@ -285,7 +295,7 @@ def build_forecast_exo_df(
         zq = (tq.to_period("Q") - 1).to_timestamp()
         enso_val = enso_actual.get(tq, np.nan)
         oil_val = oil_actual.get(tq, np.nan)
-        enso_source = "panel" if np.isfinite(enso_val) else "forecast"
+        enso_source = "forecast" if tq in ENSO_FORECAST_OVERRIDE_QUARTERS else ("panel" if np.isfinite(enso_val) else "forecast")
         if np.isfinite(oil_panel_actual.get(tq, np.nan)):
             oil_source = "panel"
         elif np.isfinite(oil_source_actual.get(tq, np.nan)):
@@ -314,7 +324,7 @@ def build_forecast_exo_df(
 # values only (yield_climate_total.csv already extends through 2027Q4 for
 # all 12 core countries, so a missing quarter should be rare/real).
 # -----------------------------------------------------------------------------
-CLIMATE_TOGGLE_VARS = ["ENSO", "IOD", "HeatDry", "OIL_YoY"]
+CLIMATE_TOGGLE_VARS = ["ENSO", "IOD", "HeatDry", "HeatDryF", "OIL_YoY"]
 
 
 def climate_variant_key(exo_vars_subset) -> str:
@@ -340,7 +350,7 @@ def build_forecast_exo_df_multi(
     iod_hist = _iod_history()
     iod_source_actual = dict(zip(iod_hist["quarter"], pd.to_numeric(iod_hist["IOD"], errors="coerce")))
 
-    all_cols = ["ENSO", "IOD", "HeatDry", "OIL_YoY"]
+    all_cols = ["ENSO", "IOD", "HeatDry", "HeatDryF", "OIL_YoY"]
     try:
         raw = pd.read_csv(gp.PATH, usecols=["country", "quarter"] + all_cols)
     except Exception as exc:
@@ -370,7 +380,7 @@ def build_forecast_exo_df_multi(
         for var in exo_vars:
             if var == "ENSO":
                 actual = _actual("ENSO", tq)
-                source = "panel" if np.isfinite(actual) else "forecast"
+                source = "forecast" if tq in ENSO_FORECAST_OVERRIDE_QUARTERS else ("panel" if np.isfinite(actual) else "forecast")
                 row["ENSO"] = actual if source == "panel" else enso_s.get(tq, np.nan)
                 row["ENSO_source"] = source
             elif var == "IOD":
@@ -856,6 +866,96 @@ def _truncate_to_complete_required_exog(
     return out.iloc[:end].reset_index(drop=True)
 
 
+def _ragged_edge_completed_history(
+    *,
+    prep: dict,
+    country: str,
+    theta: np.ndarray,
+    exo_fc: pd.DataFrame,
+    ENDO_use: list[str],
+    EXO_use: list[str],
+    mu_y: np.ndarray,
+    sd_y: np.ndarray,
+    mu_x: np.ndarray,
+    sd_x: np.ndarray,
+    mY: int,
+    m: int,
+    lags: int,
+) -> tuple[pd.DatetimeIndex, np.ndarray, np.ndarray, list[np.ndarray], list[dict], pd.DataFrame]:
+    """Complete terminal ragged-edge rows by predicting only missing y entries.
+
+    EM fitting remains complete-case. This only updates the initial state used
+    for recursive forecasts, preserving real observed GDP/CPI/FX/EX values in
+    trailing quarters where another endogenous component is missing.
+    """
+    Y_hist = np.asarray(prep["Yd"], dtype=float)
+    hist_q = pd.DatetimeIndex(pd.to_datetime(prep["quarters"]))
+    hist_raw = prep["g"][ENDO_use].to_numpy(float)
+    y_buf = [Y_hist[-i, :].copy() for i in range(1, lags + 1)]
+    completed: list[dict] = []
+
+    if not RAGGED_EDGE_FORECAST_INIT or exo_fc.empty:
+        return hist_q, Y_hist, hist_raw, y_buf, completed, exo_fc
+
+    try:
+        raw = gp._load_panel_df_cached(gp.PATH, gp.COL_COUNTRY, gp.COL_TIME)
+    except Exception:
+        return hist_q, Y_hist, hist_raw, y_buf, completed, exo_fc
+
+    raw = raw.loc[raw[gp.COL_COUNTRY].astype(str).eq(str(country))].copy()
+    if raw.empty:
+        return hist_q, Y_hist, hist_raw, y_buf, completed, exo_fc
+    raw[gp.COL_TIME] = pd.to_datetime(raw[gp.COL_TIME], errors="coerce").dt.to_period("Q").dt.to_timestamp()
+    raw = raw.dropna(subset=[gp.COL_TIME]).groupby(gp.COL_TIME, as_index=False).first().set_index(gp.COL_TIME)
+
+    exo_work = exo_fc.sort_values("target_quarter").reset_index(drop=True).copy()
+    exo_work["_target_period"] = pd.to_datetime(exo_work["target_quarter"]).dt.to_period("Q")
+    last_p = pd.Timestamp(hist_q[-1]).to_period("Q")
+    theta = np.asarray(theta, dtype=float).reshape(-1, 1)
+
+    consumed_periods: set[pd.Period] = set()
+    for _, row in exo_work.iterrows():
+        p = row["_target_period"]
+        if p <= last_p:
+            consumed_periods.add(p)
+            continue
+        q = p.to_timestamp()
+        if q not in raw.index:
+            break
+        raw_y = pd.to_numeric(raw.loc[q, ENDO_use], errors="coerce").to_numpy(float)
+        obs = np.isfinite(raw_y)
+        if not obs.any():
+            break
+        if not set(EXO_use).issubset(row.index):
+            break
+        x_raw = pd.to_numeric(row[EXO_use], errors="coerce").to_numpy(float)
+        if not np.isfinite(x_raw).all():
+            break
+
+        z_row = (x_raw - mu_x) / sd_x
+        y_pred = (_build_H(y_buf, z_row, mY, m, lags) @ theta).ravel()
+        y_completed = y_pred.copy()
+        y_completed[obs] = (raw_y[obs] - mu_y[obs]) / sd_y[obs]
+        raw_completed = y_completed * sd_y + mu_y
+
+        hist_q = hist_q.append(pd.DatetimeIndex([q]))
+        Y_hist = np.vstack([Y_hist, y_completed.reshape(1, -1)])
+        hist_raw = np.vstack([hist_raw, raw_completed.reshape(1, -1)])
+        y_buf = [y_completed.copy()] + y_buf[:-1]
+        last_p = p
+        consumed_periods.add(p)
+        completed.append(
+            {
+                "quarter": q,
+                "observed": [ENDO_use[i] for i, ok in enumerate(obs) if ok],
+                "imputed": [ENDO_use[i] for i, ok in enumerate(obs) if not ok],
+            }
+        )
+
+    exo_remaining = exo_work.loc[~exo_work["_target_period"].isin(consumed_periods)].drop(columns=["_target_period"])
+    return hist_q, Y_hist, hist_raw, y_buf, completed, exo_remaining.reset_index(drop=True)
+
+
 def forecast_country_from_em(
     prep: dict,
     res: dict,
@@ -903,8 +1003,11 @@ def forecast_country_from_em(
     mu_y = np.nanmean(g[ENDO_use].to_numpy(float), axis=0)
     sd_y = np.nanstd(g[ENDO_use].to_numpy(float), axis=0) + 1e-8
 
-    hist_mask_pre = np.isfinite(Yd).all(axis=1)
-    last_hist_p = pd.to_datetime(prep["quarters"][hist_mask_pre][-1]).to_period("Q")
+    hist_q = pd.DatetimeIndex(pd.to_datetime(prep["quarters"]))
+    Y_hist = Yd.copy()
+    hist_y_raw = g[ENDO_use].to_numpy(float)
+    y_buf0 = [Y_hist[-i, :].copy() for i in range(1, lags + 1)]
+    last_hist_p = pd.Timestamp(hist_q[-1]).to_period("Q")
     exo_fc = exo_fc[
         exo_fc["target_quarter"].apply(lambda x: pd.Timestamp(x).to_period("Q") > last_hist_p)
     ].reset_index(drop=True)
@@ -912,10 +1015,24 @@ def forecast_country_from_em(
     if exo_fc.empty:
         return None
 
-    hist_q = pd.to_datetime(prep["quarters"])
-    hist_mask = np.isfinite(Yd).all(axis=1)
-    hist_q = hist_q[hist_mask]
-    Y_hist = Yd[hist_mask]
+    hist_q, Y_hist, hist_y_raw, y_buf0, ragged_completed, exo_fc = _ragged_edge_completed_history(
+        prep=prep,
+        country=country,
+        theta=theta,
+        exo_fc=exo_fc,
+        ENDO_use=ENDO_use,
+        EXO_use=EXO_use,
+        mu_y=mu_y,
+        sd_y=sd_y,
+        mu_x=mu_x,
+        sd_x=sd_x,
+        mY=mY,
+        m=m,
+        lags=lags,
+    )
+    exo_fc = _truncate_to_complete_required_exog(exo_fc, EXO_use)
+    if exo_fc.empty:
+        return None
 
     # Standardize forecast exogenous using in-sample scaling.
     z_fc = np.zeros((len(exo_fc), mX), dtype=float)
@@ -925,7 +1042,6 @@ def forecast_country_from_em(
     if not np.isfinite(z_fc).all():
         return None
 
-    y_buf0 = [Yd[last_t - i, :].copy() for i in range(1, lags + 1)]
     seed_key = f"{country}:{scenario_name}"
     mc_seed = FORECAST_MC_SEED + sum(ord(ch) for ch in seed_key)
 
@@ -941,7 +1057,7 @@ def forecast_country_from_em(
 
     z_fc_enso0 = _zero_driver_counterfactual("ENSO")
     z_fc_iod0 = _zero_driver_counterfactual("IOD")
-    heat_var = "HeatDry" if "HeatDry" in EXO_use else None
+    heat_var = next((v for v in ("HeatDry", "HeatDryF") if v in EXO_use), None)
     z_fc_heat0 = _zero_driver_counterfactual(heat_var) if heat_var is not None else None
 
     def _forecast_method_pack(
@@ -1164,8 +1280,10 @@ def forecast_country_from_em(
         "EXO_use": EXO_use,
         "hist_quarters": hist_q,
         "hist_y": Y_hist,
-        "hist_y_raw": g.loc[hist_mask, ENDO_use].to_numpy(float),
+        "hist_y_raw": hist_y_raw,
         "hist_last_quarter": hist_q[-1],
+        "ragged_edge_init": bool(ragged_completed),
+        "ragged_edge_completed": ragged_completed,
         "fc_quarters": fc_q,
         "gap_quarters": gap_quarters,
         "period_type": period_type.tolist(),

@@ -363,6 +363,7 @@ def _build_map(
     product_label: str,
     month: str,
     reverse_colors: bool = False,
+    fit_longitude_extent: bool = False,
 ) -> pdk.Deck:
     colored = _color_points(points, reverse_colors=reverse_colors)
     if not colored.empty:
@@ -373,8 +374,8 @@ def _build_map(
         # Fit the whole bounding box in view, not just center on the data's
         # mean position -- a fixed zoom level previously showed only part of
         # the available grid when its extent was wide.
-        span = max(lat_max - lat_min, lon_max - lon_min, 1.0)
-        zoom = max(0.0, np.log2(360.0 / span) - 0.3)
+        span = max(lon_max - lon_min if fit_longitude_extent else max(lat_max - lat_min, lon_max - lon_min), 1.0)
+        zoom = max(0.0, np.log2(360.0 / span) + (0.25 if fit_longitude_extent else -0.3))
     else:
         center_lat, center_lon, zoom = 0.0, 0.0, 1.5
 
@@ -671,6 +672,7 @@ def render_el_nino_event_module(
                 PRODUCTS[product_id]["label"],
                 selected_month,
                 reverse_colors=(product_id == "Moisture"),
+                fit_longitude_extent=True,
             ),
             width="stretch",
         )

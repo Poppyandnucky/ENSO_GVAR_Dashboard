@@ -63,6 +63,36 @@ FORECAST_COEFF_METHOD_OPTIONS = {
     "avg4": "4-quarter average",
     "avg8": "8-quarter average",
 }
+ENSO_FORECAST_MEAN = {
+    "2025Q3": -0.6055,
+    "2025Q4": -0.9034,
+    "2026Q1": -0.6499,
+    "2026Q2": 0.49,
+    "2026Q3": 1.7784,
+    "2026Q4": 2.2875,
+    "2027Q1": 1.8143,
+    "2027Q2": 1.61,
+}
+ENSO_FORECAST_MIN = {
+    "2025Q3": -0.6055,
+    "2025Q4": -0.9034,
+    "2026Q1": -0.6499,
+    "2026Q2": 0.49,
+    "2026Q3": 0.9385,
+    "2026Q4": 1.4430,
+    "2027Q1": 0.8575,
+    "2027Q2": 1.3,
+}
+ENSO_FORECAST_MAX = {
+    "2025Q3": -0.6055,
+    "2025Q4": -0.9034,
+    "2026Q1": -0.6499,
+    "2026Q2": 0.49,
+    "2026Q3": 2.0330,
+    "2026Q4": 3.0678,
+    "2027Q1": 2.2604,
+    "2027Q2": 2.3,
+}
 
 HELP_TEXT = {
     "country": "Primary country used as the default selection across dashboard tabs.",
@@ -82,23 +112,6 @@ HELP_TEXT = {
 }
 
 GUIDE_SECTIONS = [
-    (
-        "Climate Early-Warning Chain",
-        "This tab links projected ENSO conditions to near-term physical climate risks. Historical "
-        "relationships between ENSO and local heat or moisture extremes are used to estimate the "
-        "probability that each country will experience climate stress during the next quarter.",
-        [
-            "Forecast ENSO conditions for the next quarter",
-            "Probability of extreme heat stress",
-            "Probability of extreme moisture stress",
-            "Country-level risk comparisons",
-            "Heat and moisture risk maps",
-        ],
-        "These probabilities provide an early-warning indicator of potential climate stress. They "
-        "do not directly estimate economic impacts. Instead, they help identify countries and "
-        "scenarios that may warrant further investigation in the Scenario Impacts tab.",
-        "Which countries face elevated climate risk under the current ENSO outlook?",
-    ),
     (
         "Scenario Impacts",
         "This tab estimates the potential macroeconomic consequences of future ENSO conditions. "
@@ -579,6 +592,9 @@ def _forecast_scenarios(bundle):
     if not isinstance(bundle, dict):
         return {}
     if "scenarios" in bundle and isinstance(bundle["scenarios"], dict):
+        active = bundle.get("active_scenario")
+        if bundle.get("format") == "approved_country_forecasts_v1" and active in bundle["scenarios"]:
+            return {active: bundle["scenarios"][active]}
         return bundle["scenarios"]
     if "per_country" in bundle:
         scenario = bundle.get("config", {}).get("enso_scenario", "mean")
@@ -590,6 +606,7 @@ CLIMATE_TOGGLE_OPTIONS = {
     "ENSO": "ENSO",
     "IOD": "IOD",
     "HeatDry": "Crop-weighted heat/dryness index",
+    "HeatDryF": "Crop-weighted heat/dryness forecast index",
     "OIL_YoY": "Oil price YoY",
 }
 _CLIMATE_TOGGLE_ORDER = {v: i for i, v in enumerate(CLIMATE_TOGGLE_OPTIONS)}
@@ -639,11 +656,23 @@ def _select_climate_variant_scenarios(bundle, climate_vars_selected):
     run_forecast_all_climate_variants). Falls back to the default ENSO-only
     scenarios if the pickle predates the climate-variant toggle or the exact
     combination wasn't precomputed."""
+    if isinstance(bundle, dict) and bundle.get("format") == "approved_country_forecasts_v1":
+        return _forecast_scenarios(bundle)
     key = _climate_variant_key(climate_vars_selected)
     variants = bundle.get("climate_variants") if isinstance(bundle, dict) else None
     if variants and key in variants:
         return variants[key].get("scenarios", {})
     return _forecast_scenarios(bundle)
+
+
+def _approved_country_pack(bundle, country):
+    if not isinstance(bundle, dict) or bundle.get("format") != "approved_country_forecasts_v1":
+        return None
+    for scenario_bundle in _forecast_scenarios(bundle).values():
+        d = scenario_bundle.get("per_country", {}).get(country)
+        if isinstance(d, dict):
+            return d
+    return None
 
 
 def _country_y_scale(country_pack, panel_df, country, endo_vars):
@@ -708,6 +737,7 @@ def _forecast_country_frame(
                     "actual_value": np.nan,
                     "coefficient_method": np.nan,
                     "coefficient_method_available": np.nan,
+                    "setting": np.nan,
                 }
             )
         )
@@ -803,6 +833,7 @@ def _forecast_country_frame(
                     "actual_value": actual_value,
                     "coefficient_method": FORECAST_COEFF_METHOD_OPTIONS.get(coeff_method, "Last quarter"),
                     "coefficient_method_available": bool(method_available),
+                    "setting": d.get("setting", np.nan),
                 }
             )
         )
@@ -1144,12 +1175,27 @@ def plot_enso_forecast_online(forecast_bundle, panel_df, plot_start=pd.Timestamp
     for scenario_name, scenario_bundle in scenarios.items():
         exo = scenario_bundle.get("exo_forecast")
         if not isinstance(exo, pd.DataFrame) or "target_quarter" not in exo or "ENSO" not in exo:
-            continue
-        tmp = exo[["target_quarter", "ENSO", "ENSO_source"]].copy()
-        tmp["quarter"] = pd.to_datetime(tmp["target_quarter"], errors="coerce").dt.to_period("Q").dt.to_timestamp()
-        tmp["ENSO"] = pd.to_numeric(tmp["ENSO"], errors="coerce")
-        tmp["scenario"] = scenario_name
-        scen_frames.append(tmp.dropna(subset=["quarter", "ENSO"]))
+            per_country = scenario_bundle.get("per_country", {}) if isinstance(scenario_bundle, dict) else {}
+            exo_items = [
+                (f"{scenario_name}:{c}", d.get("exo_forecast"))
+                for c, d in per_country.items()
+                if isinstance(d, dict)
+            ]
+        else:
+            exo_items = [(scenario_name, exo)]
+        for label, exo_item in exo_items:
+            if not isinstance(exo_item, pd.DataFrame) or "target_quarter" not in exo_item or "ENSO" not in exo_item:
+                continue
+            cols = ["target_quarter", "ENSO"]
+            if "ENSO_source" in exo_item.columns:
+                cols.append("ENSO_source")
+            tmp = exo_item[cols].copy()
+            if "ENSO_source" not in tmp.columns:
+                tmp["ENSO_source"] = "forecast"
+            tmp["quarter"] = pd.to_datetime(tmp["target_quarter"], errors="coerce").dt.to_period("Q").dt.to_timestamp()
+            tmp["ENSO"] = pd.to_numeric(tmp["ENSO"], errors="coerce")
+            tmp["scenario"] = label
+            scen_frames.append(tmp.dropna(subset=["quarter", "ENSO"]))
     if not scen_frames:
         return None
 
@@ -1162,8 +1208,21 @@ def plot_enso_forecast_online(forecast_bundle, panel_df, plot_start=pd.Timestamp
         return None
 
     mean = piv["mean"] if "mean" in piv else piv.mean(axis=1)
-    lower = piv.min(axis=1)
-    upper = piv.max(axis=1)
+    if {"min", "max"}.issubset(set(piv.columns)):
+        lower = piv["min"]
+        upper = piv["max"]
+    else:
+        def _scenario_series(values):
+            s = pd.Series(
+                {
+                    pd.Period(q, freq="Q").to_timestamp(): float(v)
+                    for q, v in values.items()
+                }
+            ).sort_index()
+            return s.reindex(mean.index)
+
+        lower = _scenario_series(ENSO_FORECAST_MIN).combine_first(piv.min(axis=1))
+        upper = _scenario_series(ENSO_FORECAST_MAX).combine_first(piv.max(axis=1))
 
     fig = go.Figure()
     if not hist.empty:
@@ -1995,7 +2054,6 @@ with st.container(key="analysis_scope_panel"):
 
 (
     tab_el_nino_event,
-    tab_climate_risk,
     tab_scenario,
     tab_event_study,
     tab_structural_break,
@@ -2004,7 +2062,6 @@ with st.container(key="analysis_scope_panel"):
 ) = st.tabs(
     [
         "2026–2027 El Niño Event",
-        "Climate Early-Warning Chain",
         "Scenario Impacts",
         "ENSO Peak Event Study",
         "Structural Break Analysis",
@@ -2028,14 +2085,14 @@ st.markdown("""
     }
 
     /* 2. Styling the Feedback Tab specifically (2rd tab) */
-    div[data-baseweb="tab-list"] button:nth-of-type(7) {
+    div[data-baseweb="tab-list"] button:nth-of-type(6) {
         background-color: #E8F4F0 !important;
         margin-left: 10px; /* Optional: adds a small gap to separate it */
         border-radius: 6px 6px 0 0;
     }
 
     /* 3. Text color for the Feedback Tab */
-    div[data-baseweb="tab-list"] button:nth-of-type(7) p {
+    div[data-baseweb="tab-list"] button:nth-of-type(6) p {
         color: #2E7D6B !important;
         font-weight: 600;
     }
@@ -2052,196 +2109,11 @@ with tab_el_nino_event:
         country_label_func=iso3_to_label,
     )
 
-with tab_climate_risk:
-    st_header("Climate Early-Warning Chain")
-    render_current_selection(country, response_var)
-    render_tab_description(0)
-
-    st.markdown(
-        """
-        This panel links ENSO conditions today to the probability of localized heat
-        and moisture (drought) stress next quarter. Macroeconomic impacts are evaluated
-        separately in the Scenario Impacts tab.
-        """
-    )
-
-    ew_cols = st.columns([1, 1, 2])
-    with ew_cols[0]:
-        enso_forecast = st.slider(
-            "ENSO forecast for next quarter",
-            min_value=-2.5,
-            max_value=2.5,
-            value=1.5,
-            step=0.1,
-            key="enso_forecast",
-            help=HELP_TEXT["enso_forecast"],
-        )
-    with ew_cols[1]:
-        heat_moist_pct = st.slider(
-            "Heat and moisture stress threshold (percentile)",
-            min_value=80,
-            max_value=99,
-            value=90,
-            step=1,
-            key="heat_threshold",
-            help=HELP_TEXT["stress_threshold"],
-        )
-
-    prob_rows_df = build_climate_probability_rows(_panel_path, enso_forecast, heat_moist_pct)
-    selected_prob = prob_rows_df[prob_rows_df["Country"] == country]
-    p_heat = (
-        float(selected_prob["Heat probability (%)"].iloc[0]) / 100
-        if not selected_prob.empty and pd.notna(selected_prob["Heat probability (%)"].iloc[0])
-        else np.nan
-    )
-    p_moist = (
-        float(selected_prob["Moisture probability (%)"].iloc[0]) / 100
-        if not selected_prob.empty and pd.notna(selected_prob["Moisture probability (%)"].iloc[0])
-        else np.nan
-    )
-
-    st_subheader(f"Results for {country}")
-    p_row = prob_df[prob_df["country"] == country]
-    c1, c2, c3, c4 = st.columns(4)
-    baseline = 1.0 - heat_moist_pct / 100
-    with c1:
-        st.metric(
-            "Baseline probability of extreme heat next quarter",
-            f"{baseline:.0%}",
-            help=HELP_TEXT["baseline_probability"],
-        )
-    with c2:
-        base_heat = pd.to_numeric(p_row.get("P_HEAT_NEXT_Q"), errors="coerce").iloc[0] if not p_row.empty else np.nan
-        delta_heat = p_heat - base_heat if pd.notna(base_heat) and pd.notna(p_heat) else np.nan
-        st.metric(
-            "ENSO-conditioned probability of extreme heat next quarter",
-            "—" if np.isnan(p_heat) else f"{p_heat:.0%}",
-            **({ "delta": f"{delta_heat:+.0%}" } if pd.notna(delta_heat) else {}),
-            help=HELP_TEXT["enso_probability"],
-        )
-    with c3:
-        st.metric(
-            "Baseline probability of moisture stress next quarter",
-            f"{baseline:.0%}",
-            help=HELP_TEXT["baseline_probability"],
-        )
-    with c4:
-        base_moist = pd.to_numeric(p_row.get("P_MOISTURE_NEXT_Q"), errors="coerce").iloc[0] if not p_row.empty else np.nan
-        delta_moist = p_moist - base_moist if pd.notna(base_moist) and pd.notna(p_moist) else np.nan
-        st.metric(
-            "ENSO-conditioned probability of extreme moisture next quarter",
-            "—" if np.isnan(p_moist) else f"{p_moist:.0%}",
-            **({ "delta": f"{delta_moist:+.0%}" } if pd.notna(delta_moist) else {}),
-            help=HELP_TEXT["enso_probability"],
-        )
-
-    st.caption(
-        "Probabilities are estimated from historical ENSO → physical stress relationships "
-        "and provide context for scenario selection."
-    )
-
-    st_subheader("Country comparison of next-quarter climate stress risk")
-    st.caption(
-        "Probabilities are conditioned on the selected ENSO forecast and represent the likelihood "
-        "of exceeding the specified climate-stress threshold during the next quarter."
-    )
-    st.caption(
-        "Interpretation note: Both extreme heat and moisture stress can be influenced by ENSO "
-        "conditions. However, moisture stress often occurs even in the absence of ENSO events, "
-        "so ENSO-conditioned changes in moisture-stress probabilities are generally smaller and "
-        "should be interpreted more cautiously than changes in heat-stress probabilities."
-    )
-    risk_table = prob_rows_df.sort_values("Heat probability (%)", ascending=False).copy()
-    risk_table["Country"] = risk_table["Country"].map(iso3_to_label)
-    st.dataframe(
-        risk_table,
-        column_config={
-            "Country": st.column_config.TextColumn("Country"),
-            "Heat probability (%)": st.column_config.NumberColumn(
-                "Extreme Heat Risk",
-                format="%.1f%%",
-                help=HELP_TEXT["risk_summary"],
-            ),
-            "Moisture probability (%)": st.column_config.NumberColumn(
-                "Moisture Stress (Drought) Risk",
-                format="%.1f%%",
-                help=HELP_TEXT["risk_summary"],
-            ),
-        },
-        hide_index=True,
-        width="stretch",
-    )
-
-    world = gpd.read_file(_ROOT / "data" / "natural_earth" / "ne_110m_admin_0_countries.shp")
-    world_modeled = world[world["ISO_A3"].isin(DASHBOARD_COUNTRIES)].merge(
-        prob_rows_df, left_on="ISO_A3", right_on="Country", how="left"
-    )
-
-    def choropleth_map(plt_title, colorbar_title, map_color, map_lbl):
-        st_subheader(plt_title)
-        fig = px.choropleth(
-            world,
-            geojson=world.geometry,
-            locations=world.index,
-            color_discrete_sequence=["#FFFFFF"],
-        )
-        fig.update_traces(marker_line_color="#B8B8B8", marker_line_width=0.6, hoverinfo="skip")
-        fig2 = px.choropleth(
-            world_modeled,
-            geojson=world_modeled.geometry,
-            locations=world_modeled.index,
-            color=map_color,
-            color_continuous_scale="Blues",
-            range_color=(0, 100),
-            labels={map_color: map_lbl},
-            hover_name="NAME",
-        )
-        fig2.update_traces(marker_line_color="#4D4D4D", marker_line_width=0.8)
-        for trace in fig2.data:
-            fig.add_trace(trace)
-        fig.update_geos(
-            fitbounds="locations",
-            visible=False,
-            showcountries=True,
-            countrycolor="#B8B8B8",
-            countrywidth=0.6,
-            showcoastlines=True,
-            coastlinecolor="#B8B8B8",
-        )
-        fig.update_layout(
-            height=800,
-            margin={"r": 0, "t": 0, "l": 0, "b": 0},
-            coloraxis_colorbar=dict(
-                orientation="h",
-                title=colorbar_title,
-                x=0.5,
-                xanchor="center",
-                y=0.05,
-                yanchor="top",
-                len=0.6,
-                thickness=15,
-            ),
-        )
-        st.plotly_chart(fig, width="stretch", config={"scrollZoom": False})
-
-    choropleth_map(
-        "Probability of extreme heat next quarter (conditioned on user-selected ENSO forecast)",
-        "Probability of extreme heat",
-        "Heat probability (%)",
-        "Probability of extreme heat",
-    )
-    choropleth_map(
-        "Probability of extreme moisture next quarter (conditioned on user-selected ENSO forecast)",
-        "Probability of extreme moisture",
-        "Moisture probability (%)",
-        "Probability of extreme moisture",
-    )
-
 
 with tab_scenario:
     st_header("Scenario Impacts")
     render_current_selection(country, response_var)
-    render_tab_description(1)
+    render_tab_description(0)
 
     forecast_pack = load_forecast_bundle(forecast_pickle_state())
     if not forecast_pack["path"]:
@@ -2254,38 +2126,46 @@ with tab_scenario:
         st_subheader("Core forecast")
         st.info("No forecast bundle is available for the online ENSO forecast chart.")
     else:
-        climate_variant_choice = st.radio(
-            "Climate drivers used for this forecast",
-            options=list(CLIMATE_VARIANT_CHOICES),
-            format_func=lambda k: CLIMATE_VARIANT_CHOICES[k]["label"],
-            index=0,
-            key="scenario_climate_variant",
-            horizontal=True,
-            help=(
-                "Choose one of the pre-estimated external-driver specifications. Oil, "
-                "HeatDry, and IOD use merged panel/source values; ENSO specifications "
-                "also include the mean/min/max ENSO scenario paths."
-            ),
-        )
-        climate_vars_selected = CLIMATE_VARIANT_CHOICES[climate_variant_choice]["vars"]
-        heat_var_active = "HeatDry" if "HeatDry" in climate_vars_selected else None
+        approved_pack = _approved_country_pack(forecast_pack["bundle"], country)
+        if approved_pack is not None:
+            climate_vars_selected = list(approved_pack.get("EXO_use", []))
+            st.caption(
+                "Using the country-specific forecast approved from `analysis/diagnose/country_diag.py`."
+            )
+        else:
+            climate_variant_choice = st.radio(
+                "Climate drivers used for this forecast",
+                options=list(CLIMATE_VARIANT_CHOICES),
+                format_func=lambda k: CLIMATE_VARIANT_CHOICES[k]["label"],
+                index=0,
+                key="scenario_climate_variant",
+                horizontal=True,
+                help=(
+                    "Choose one of the pre-estimated external-driver specifications. Oil, "
+                    "HeatDry, and IOD use merged panel/source values; ENSO specifications "
+                    "also include the mean/min/max ENSO scenario paths."
+                ),
+            )
+            climate_vars_selected = CLIMATE_VARIANT_CHOICES[climate_variant_choice]["vars"]
+        heat_var_active = next((v for v in climate_vars_selected if str(v).startswith("HeatDry")), None)
         enso_active = "ENSO" in climate_vars_selected
         iod_active = "IOD" in climate_vars_selected
         climate_variant_bundle = {
             "scenarios": _select_climate_variant_scenarios(forecast_pack["bundle"], climate_vars_selected),
             "climate_variants": forecast_pack["bundle"].get("climate_variants"),
         }
-        if forecast_pack["bundle"].get("climate_variants") is None:
-            st.caption(
-                "This forecast pickle predates the climate-driver toggle, so it's showing "
-                "the default ENSO-only forecast regardless of the selection above. "
-                "Regenerate `Dash_Input/gvar_forecast_results.pkl` to enable it."
-            )
-        elif set(climate_vars_selected) != {"ENSO"}:
-            st.caption(
-                f"Model refit using: {', '.join(CLIMATE_TOGGLE_OPTIONS[v] for v in climate_vars_selected)}. "
-                "This is a separately-estimated model, not a filter on the default ENSO forecast."
-            )
+        if approved_pack is None:
+            if forecast_pack["bundle"].get("climate_variants") is None:
+                st.caption(
+                    "This forecast pickle predates the climate-driver toggle, so it's showing "
+                    "the default ENSO-only forecast regardless of the selection above. "
+                    "Regenerate `Dash_Input/gvar_forecast_results.pkl` to enable it."
+                )
+            elif set(climate_vars_selected) != {"ENSO"}:
+                st.caption(
+                    f"Model refit using: {', '.join(CLIMATE_TOGGLE_OPTIONS[v] for v in climate_vars_selected)}. "
+                    "This is a separately-estimated model, not a filter on the default ENSO forecast."
+                )
 
         show_actual_overlap = st.checkbox(
             "Compare forecast vs. actual for already-observed quarters",
@@ -2322,6 +2202,10 @@ with tab_scenario:
             include_observed_overlap=show_actual_overlap,
             coeff_method=coeff_method,
         )
+        approved_setting_values = selected_df.loc[
+            ~selected_df["period_type"].eq("Actual history"), "setting"
+        ].dropna().astype(str).unique() if not selected_df.empty and "setting" in selected_df.columns else []
+        approved_setting_text = approved_setting_values[0] if len(approved_setting_values) else None
         if (
             show_actual_overlap
             and coeff_method != "last"
@@ -2357,6 +2241,8 @@ with tab_scenario:
                 st.info("Forecast pickle does not contain data for the selected country/response.")
             else:
                 st.plotly_chart(fig_selected, width="stretch")
+                if approved_setting_text:
+                    st.caption(f"Approved model setting: {approved_setting_text}")
                 st.caption(
                     "No-ENSO counterfactual: the same forecasting model is run with future ENSO index "
                     "values set to 0, so the gap from the forecasted ENSO scenario indicates the "
@@ -2379,6 +2265,8 @@ with tab_scenario:
                 st.info("Forecast pickle does not contain an IOD counterfactual for this selection.")
             else:
                 st.plotly_chart(fig_iod, width="stretch")
+                if approved_setting_text:
+                    st.caption(f"Approved model setting: {approved_setting_text}")
                 st.caption(
                     "No-IOD counterfactual: the same forecasting model is run with future IOD index "
                     "values set to 0, so the gap from the forecasted scenario indicates the "
@@ -2395,6 +2283,8 @@ with tab_scenario:
                 st.info(f"Forecast pickle does not contain a {heat_label} counterfactual for this selection.")
             else:
                 st.plotly_chart(fig_heat, width="stretch")
+                if approved_setting_text:
+                    st.caption(f"Approved model setting: {approved_setting_text}")
                 st.caption(
                     f"No-{heat_label} counterfactual: the same forecasting model is run with the "
                     f"future {heat_label} values set to 0, so the gap from the forecasted scenario "
@@ -2580,7 +2470,11 @@ with tab_scenario:
                 }
             )
         if not map_specs:
-            selected_variant_label = CLIMATE_VARIANT_CHOICES[climate_variant_choice]["label"]
+            selected_variant_label = (
+                "approved country-specific specification"
+                if approved_pack is not None
+                else CLIMATE_VARIANT_CHOICES[climate_variant_choice]["label"]
+            )
             st.info(f"No climate counterfactual maps are available for the {selected_variant_label} variant.")
         else:
             st.caption(
@@ -2620,7 +2514,7 @@ with tab_scenario:
 with tab_event_study:
     st_header("ENSO Peak Event Study")
     render_current_selection(country, response_var)
-    render_tab_description(2)
+    render_tab_description(1)
     st.caption(
         "The quarter of each ENSO peak is aligned at t=0. Observed Responses show how each "
         "indicator changes relative to the selected reference quarter. Estimated ENSO Effects "
@@ -2862,7 +2756,7 @@ with tab_event_study:
 with tab_structural_break:
     st_header("Structural Break")
     render_current_selection(country, response_var)
-    render_tab_description(3)
+    render_tab_description(2)
     st.markdown(
         "A set of analyses generated from Kalman filter / EM outputs, "
         "with optional LLM (Gemini) structural-break overlays."
@@ -3411,11 +3305,6 @@ with tab_guide:
 
     workflow_steps = [
         (
-            "Climate Early-Warning Chain",
-            "Assess whether current ENSO conditions increase the likelihood of extreme heat or moisture "
-            "stress in the coming quarter.",
-        ),
-        (
             "Scenario Impacts",
             "Estimate how alternative ENSO scenarios could affect GDP growth, inflation, exchange rates, "
             "and exports relative to a no-ENSO baseline.",
@@ -3438,24 +3327,7 @@ with tab_guide:
 
     guide_sections = [
         (
-            "Tab 1: Climate Early-Warning Chain",
-            "This tab links projected ENSO conditions to near-term physical climate risks. Historical "
-            "relationships between ENSO and local heat or moisture extremes are used to estimate the "
-            "probability that each country will experience climate stress during the next quarter.",
-            [
-                "Forecast ENSO conditions for the next quarter",
-                "Probability of extreme heat stress",
-                "Probability of extreme moisture stress",
-                "Country-level risk comparisons",
-                "Heat and moisture risk maps",
-            ],
-            "These probabilities provide an early-warning indicator of potential climate stress. They "
-            "do not directly estimate economic impacts. Instead, they help identify countries and "
-            "scenarios that may warrant further investigation in the Scenario Impacts tab.",
-            "Which countries face elevated climate risk under the current ENSO outlook?",
-        ),
-        (
-            "Tab 2: Scenario Impacts",
+            "Tab 1: Scenario Impacts",
             "This tab estimates the potential macroeconomic consequences of future ENSO conditions. "
             "Forecasts are generated using the climate-macroeconomic model and are compared against "
             "a counterfactual scenario in which future ENSO effects are absent.",
@@ -3473,7 +3345,7 @@ with tab_guide:
             "How much could future ENSO conditions affect economic performance in each country?",
         ),
         (
-            "Tab 3: ENSO Peak Event Study",
+            "Tab 2: ENSO Peak Event Study",
             "This tab examines historical macroeconomic responses around major ENSO events. Multiple "
             "ENSO peaks are aligned in time so that users can compare economic trajectories before "
             "and after past climate shocks.",
@@ -3489,7 +3361,7 @@ with tab_guide:
             "What happened during past major ENSO events?",
         ),
         (
-            "Tab 4: Structural Break Analysis",
+            "Tab 3: Structural Break Analysis",
             "This tab evaluates whether climate-economy relationships have changed over time. Structural "
             "breaks may arise from policy reforms, economic transitions, technological change, trade "
             "shifts, financial crises, or other major events.",
