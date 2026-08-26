@@ -364,6 +364,7 @@ def _build_map(
     month: str,
     reverse_colors: bool = False,
     fit_longitude_extent: bool = False,
+    repeat_world: bool = True,
 ) -> pdk.Deck:
     colored = _color_points(points, reverse_colors=reverse_colors)
     if not colored.empty:
@@ -402,6 +403,7 @@ def _build_map(
     )
     return pdk.Deck(
         layers=[point_layer, boundary_layer],
+        views=[pdk.View(type="MapView", controller=True, repeat=repeat_world)],
         initial_view_state=pdk.ViewState(latitude=center_lat, longitude=center_lon, zoom=zoom, pitch=0),
         map_style=pdk.map_styles.CARTO_LIGHT_NO_LABELS,
         tooltip={
@@ -673,6 +675,7 @@ def render_el_nino_event_module(
                 selected_month,
                 reverse_colors=(product_id == "Moisture"),
                 fit_longitude_extent=True,
+                repeat_world=False,
             ),
             width="stretch",
         )
