@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import html
+import json
 import pickle
 from pathlib import Path
 from typing import Callable
@@ -10,6 +12,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import pydeck as pdk
 import streamlit as st
+import streamlit.components.v1 as components
 
 
 MONTH_ORDER = ["6", "7", "8", "9", "10", "11", "12", "1", "2", "3", "4"]
@@ -98,6 +101,13 @@ COUNTRY_NAME_TO_ISO = {
     "Thailand": "THA",
 }
 
+# A color-blind-friendlier blue/neutral/red diverging palette. Both ends are
+# deliberately dark enough to remain visible on CARTO's light basemap.
+NEGATIVE_COLOR = np.array([33, 102, 172])
+NEUTRAL_COLOR = np.array([247, 247, 247])
+POSITIVE_COLOR = np.array([178, 24, 43])
+COLOR_ALPHA = 205
+
 
 def _file_mtime(path: Path) -> float:
     return path.stat().st_mtime if path.exists() else 0.0
@@ -109,6 +119,15 @@ def _display_lon(values: pd.Series) -> pd.Series:
 
 def _month_timestamp(month: str) -> pd.Timestamp:
     return pd.Timestamp(f"{MONTH_LABELS[month]}-01")
+
+
+def _month_slider_label(month: str) -> str:
+    label = MONTH_LABELS[month]
+    if month == MONTH_ORDER[0]:
+        return f"← {label}"
+    if month == MONTH_ORDER[-1]:
+        return f"{label} →"
+    return label
 
 
 def _source_mtime_state(paths: list[Path]) -> tuple[tuple[str, float], ...]:
@@ -326,36 +345,307 @@ def _load_weight_points(geolat_dir: Path, weight_id: str, month: str) -> pd.Data
     return weight[["lat", "join_lon", "value"]].rename(columns={"value": "weight"})
 
 
-def _color_points(df: pd.DataFrame, reverse_colors: bool = False) -> pd.DataFrame:
+def _symmetric_color_limit(values: pd.Series, quantile: float = 0.98) -> float:
+    """Return a robust, symmetric color limit while ignoring invalid values."""
+    finite = np.abs(pd.to_numeric(values, errors="coerce").to_numpy(dtype=float))
+    finite = finite[np.isfinite(finite)]
+    if not len(finite):
+        return 1.0
+    limit = float(np.quantile(finite, quantile))
+    if not np.isfinite(limit) or limit <= 0:
+        limit = float(np.max(finite))
+    return limit if np.isfinite(limit) and limit > 0 else 1.0
+
+
+@st.cache_data(show_spinner=False)
+def _product_color_limit(path: str, path_mtime: float) -> float:
+    """Use one robust scale across all months so month-to-month colors compare."""
+    df = _load_geolat_product(path, path_mtime)
+    month_cols = [month for month in MONTH_ORDER if month in df.columns]
+    if not month_cols:
+        return 1.0
+    return _symmetric_color_limit(df[month_cols].stack(dropna=True))
+
+
+def _color_points(
+    df: pd.DataFrame,
+    reverse_colors: bool = False,
+    color_limit: float | None = None,
+) -> pd.DataFrame:
     out = df.copy()
-    values = out["value"].to_numpy(dtype=float)
-    max_abs = float(np.nanmax(np.abs(values))) if len(values) else 1.0
-    if not np.isfinite(max_abs) or max_abs == 0:
-        max_abs = 1.0
+    out["value"] = pd.to_numeric(out["value"], errors="coerce")
+    out = out[np.isfinite(out["value"])].copy()
+    limit = color_limit if color_limit is not None else _symmetric_color_limit(out["value"])
+    if not np.isfinite(limit) or limit <= 0:
+        limit = 1.0
 
     def color(value: float) -> list[int]:
-        scaled = max(-1.0, min(1.0, float(value) / max_abs))
-        neutral = np.array([246, 246, 246])
-        blue = np.array([49, 130, 189])
-        red = np.array([202, 0, 32])
+        scaled = max(-1.0, min(1.0, float(value) / limit))
 
         if reverse_colors:
             # For Moisture: negative = red/dry, positive = blue/wet
             if scaled < 0:
-                rgb = neutral + abs(scaled) * (red - neutral)
+                rgb = NEUTRAL_COLOR + abs(scaled) * (POSITIVE_COLOR - NEUTRAL_COLOR)
             else:
-                rgb = neutral + scaled * (blue - neutral)
+                rgb = NEUTRAL_COLOR + scaled * (NEGATIVE_COLOR - NEUTRAL_COLOR)
         else:
             # For Heat: negative = blue/cool, positive = red/hot
             if scaled < 0:
-                rgb = neutral + abs(scaled) * (blue - neutral)
+                rgb = NEUTRAL_COLOR + abs(scaled) * (NEGATIVE_COLOR - NEUTRAL_COLOR)
             else:
-                rgb = neutral + scaled * (red - neutral)
+                rgb = NEUTRAL_COLOR + scaled * (POSITIVE_COLOR - NEUTRAL_COLOR)
 
-        return [int(x) for x in rgb] + [185]
+        return [int(x) for x in rgb] + [COLOR_ALPHA]
 
     out["fill_color"] = out["value"].map(color)
+    out["display_value"] = out["value"].map(lambda value: f"{value:,.3f}")
     return out
+
+
+def _render_map_legend(
+    color_limit: float,
+    reverse_colors: bool,
+    negative_label: str,
+    positive_label: str,
+) -> None:
+    left_color = "#b2182b" if reverse_colors else "#2166ac"
+    right_color = "#2166ac" if reverse_colors else "#b2182b"
+    st.markdown(
+        f"""
+        <div style="margin:-0.45rem 0 0.8rem 0; font-size:0.82rem; color:#4b5563;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:0.2rem;">
+            <span>{html.escape(negative_label)} (&le; {-color_limit:,.3g})</span>
+            <span>0</span>
+            <span>{html.escape(positive_label)} (&ge; {color_limit:,.3g})</span>
+          </div>
+          <div style="height:10px; border-radius:5px; border:1px solid #cbd5e1;
+                      background:linear-gradient(90deg,{left_color},#f7f7f7,{right_color});"></div>
+          <div style="margin-top:0.25rem;">Values beyond the endpoints are clipped to preserve detail.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _country_bounds(
+    boundaries_geojson: dict,
+    iso3: str | None,
+) -> tuple[float, float, float, float] | None:
+    """Return (west, south, east, north) for one ISO3 GeoJSON feature."""
+    if not iso3:
+        return None
+    feature = next(
+        (
+            item
+            for item in boundaries_geojson.get("features", [])
+            if item.get("properties", {}).get("ISO_A3") == iso3
+        ),
+        None,
+    )
+    if feature is None:
+        return None
+
+    coordinates: list[tuple[float, float]] = []
+
+    def collect(value) -> None:
+        if (
+            isinstance(value, (list, tuple))
+            and len(value) >= 2
+            and all(isinstance(item, (int, float)) for item in value[:2])
+        ):
+            coordinates.append((float(value[0]), float(value[1])))
+            return
+        if isinstance(value, (list, tuple)):
+            for item in value:
+                collect(item)
+
+    collect(feature.get("geometry", {}).get("coordinates", []))
+    if not coordinates:
+        return None
+    longitudes, latitudes = zip(*coordinates)
+    return min(longitudes), min(latitudes), max(longitudes), max(latitudes)
+
+
+def _sync_session_value(source_key: str, target_key: str) -> None:
+    """Keep paired controls synchronized without giving them duplicate keys."""
+    st.session_state[target_key] = st.session_state[source_key]
+
+
+def _step_month(source_key: str, target_key: str, delta: int) -> None:
+    """Move paired month controls by exactly one available month."""
+    current = st.session_state.get(source_key, MONTH_ORDER[0])
+    current_index = MONTH_ORDER.index(current) if current in MONTH_ORDER else 0
+    new_index = max(0, min(len(MONTH_ORDER) - 1, current_index + delta))
+    new_month = MONTH_ORDER[new_index]
+    st.session_state[source_key] = new_month
+    st.session_state[target_key] = new_month
+
+
+def _render_deck_chart(
+    deck: pdk.Deck,
+    height: int = 500,
+    sync_group: str | None = None,
+    view_context: str = "global",
+) -> None:
+    """Render outside Streamlit's wrapper so controller options are preserved."""
+    deck_html = deck.to_html(as_string=True)
+    controls = """
+    <style>
+      #map-navigation {
+        position: absolute;
+        right: 10px;
+        top: 10px;
+        z-index: 20;
+        display: flex;
+        flex-direction: row;
+        border-radius: 4px;
+        overflow: hidden;
+        opacity: 0.82;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
+      }
+      #map-navigation button {
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        border: 0;
+        border-right: 1px solid #d1d5db;
+        background: white;
+        color: #1f2937;
+        font: 600 16px/34px Arial, sans-serif;
+        cursor: pointer;
+      }
+      #map-navigation button:last-child { border-right: 0; }
+      #map-navigation button:hover { background: #f3f4f6; }
+      #map-navigation button:focus-visible {
+        outline: 2px solid #2563eb;
+        outline-offset: -2px;
+      }
+    </style>
+    <div id="map-navigation" aria-label="Map controls">
+      <button id="map-zoom-in" type="button" title="Zoom in" aria-label="Zoom in">
+        <i class="fa fa-plus" aria-hidden="true"></i>
+      </button>
+      <button id="map-zoom-out" type="button" title="Zoom out" aria-label="Zoom out">
+        <i class="fa fa-minus" aria-hidden="true"></i>
+      </button>
+      <button id="map-reset" type="button" title="Reset view" aria-label="Reset view">
+        <i class="fa fa-home" aria-hidden="true"></i>
+      </button>
+      <button id="map-fullscreen" type="button" title="Toggle fullscreen" aria-label="Toggle fullscreen">
+        <i class="fa fa-expand" aria-hidden="true"></i>
+      </button>
+      <button id="map-download" type="button" title="Download map as PNG" aria-label="Download map as PNG">
+        <i class="fa fa-camera" aria-hidden="true"></i>
+      </button>
+    </div>
+    """
+    control_script = """
+    <script>
+      const initialViewState = {...jsonInput.initialViewState};
+      let applyingRemoteView = false;
+      const syncGroup = __SYNC_GROUP__;
+      const viewContext = __VIEW_CONTEXT__;
+      const persistenceKey = syncGroup
+        ? `climate-map-view:${syncGroup}:${viewContext}`
+        : null;
+      let savedViewState = null;
+      if (persistenceKey) {
+        try {
+          savedViewState = JSON.parse(sessionStorage.getItem(persistenceKey));
+        } catch (error) {
+          savedViewState = null;
+        }
+      }
+      let controlledViewState = {...initialViewState, ...(savedViewState || {})};
+      const syncChannel = syncGroup && 'BroadcastChannel' in window
+        ? new BroadcastChannel(syncGroup)
+        : null;
+      const normalizeLongitude = (value) => {
+        if (!Number.isFinite(value)) return 0;
+        return ((value + 180) % 360 + 360) % 360 - 180;
+      };
+
+      const applyViewState = (viewState, broadcast = true) => {
+        controlledViewState = {
+          ...viewState,
+          longitude: normalizeLongitude(viewState.longitude),
+          latitude: Math.max(-85, Math.min(85, viewState.latitude))
+        };
+        deckInstance.setProps({viewState: controlledViewState});
+        if (persistenceKey) {
+          try {
+            const persistentView = {
+              longitude: controlledViewState.longitude,
+              latitude: controlledViewState.latitude,
+              zoom: controlledViewState.zoom,
+              bearing: controlledViewState.bearing || 0,
+              pitch: controlledViewState.pitch || 0
+            };
+            sessionStorage.setItem(persistenceKey, JSON.stringify(persistentView));
+          } catch (error) {
+            // Storage may be unavailable under restrictive browser settings.
+          }
+        }
+        if (broadcast && syncChannel && !applyingRemoteView) {
+          syncChannel.postMessage(controlledViewState);
+        }
+      };
+
+      deckInstance.setProps({
+        viewState: controlledViewState,
+        onViewStateChange: ({viewState}) => applyViewState(viewState)
+      });
+      if (syncChannel) {
+        syncChannel.onmessage = (event) => {
+          applyingRemoteView = true;
+          applyViewState(event.data, false);
+          applyingRemoteView = false;
+        };
+        window.addEventListener('beforeunload', () => syncChannel.close(), {once: true});
+      }
+
+      const zoomBy = (increment) => applyViewState({
+        ...controlledViewState,
+        zoom: Math.max(0, Math.min(20, controlledViewState.zoom + increment))
+      });
+      document.getElementById('map-zoom-in').addEventListener('click', () => zoomBy(1));
+      document.getElementById('map-zoom-out').addEventListener('click', () => zoomBy(-1));
+      document.getElementById('map-reset').addEventListener(
+        'click',
+        () => applyViewState({...initialViewState})
+      );
+      document.getElementById('map-fullscreen').addEventListener('click', async () => {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen();
+        } else {
+          await document.documentElement.requestFullscreen();
+        }
+      });
+      document.getElementById('map-download').addEventListener('click', () => {
+        deckInstance.redraw(true);
+        requestAnimationFrame(() => {
+          const canvases = Array.from(document.querySelectorAll('#deck-container canvas'));
+          if (!canvases.length) return;
+          const source = canvases[0];
+          const output = document.createElement('canvas');
+          output.width = source.width;
+          output.height = source.height;
+          const context = output.getContext('2d');
+          canvases.forEach((canvas) => context.drawImage(canvas, 0, 0, output.width, output.height));
+          const link = document.createElement('a');
+          link.download = 'climate-map.png';
+          link.href = output.toDataURL('image/png');
+          link.click();
+        });
+      });
+    </script>
+    """
+    control_script = control_script.replace("__SYNC_GROUP__", json.dumps(sync_group))
+    control_script = control_script.replace("__VIEW_CONTEXT__", json.dumps(view_context))
+    deck_html = deck_html.replace("</body>", f"{controls}</body>")
+    deck_html = deck_html.replace("</html>", f"{control_script}</html>")
+    components.html(deck_html, height=height, scrolling=False)
+
 
 def _build_map(
     points: pd.DataFrame,
@@ -365,18 +655,41 @@ def _build_map(
     reverse_colors: bool = False,
     fit_longitude_extent: bool = False,
     repeat_world: bool = True,
+    color_limit: float | None = None,
+    focus_bounds: tuple[float, float, float, float] | None = None,
+    global_zoom_adjustment: float = 0.0,
+    global_center_latitude: float | None = None,
 ) -> pdk.Deck:
-    colored = _color_points(points, reverse_colors=reverse_colors)
-    if not colored.empty:
+    colored = _color_points(
+        points,
+        reverse_colors=reverse_colors,
+        color_limit=color_limit,
+    )
+    if focus_bounds is not None:
+        lon_min, lat_min, lon_max, lat_max = focus_bounds
+        center_lat = (lat_min + lat_max) / 2
+        center_lon = (lon_min + lon_max) / 2
+        # Leave enough padding for labels/borders and account for the map's
+        # landscape aspect ratio when fitting a country.
+        span = max(lat_max - lat_min, (lon_max - lon_min) / 1.7, 1.0)
+        zoom = max(0.0, min(8.0, np.log2(180.0 / span) + 0.55))
+    elif not colored.empty:
         lat_min, lat_max = float(colored["lat"].min()), float(colored["lat"].max())
         lon_min, lon_max = float(colored["plot_lon"].min()), float(colored["plot_lon"].max())
         center_lat = (lat_min + lat_max) / 2
         center_lon = (lon_min + lon_max) / 2
+        if global_center_latitude is not None:
+            center_lat = global_center_latitude
         # Fit the whole bounding box in view, not just center on the data's
         # mean position -- a fixed zoom level previously showed only part of
         # the available grid when its extent was wide.
         span = max(lon_max - lon_min if fit_longitude_extent else max(lat_max - lat_min, lon_max - lon_min), 1.0)
-        zoom = max(0.0, np.log2(360.0 / span) + (1.55 if fit_longitude_extent else -0.3))
+        zoom = max(
+            0.0,
+            np.log2(360.0 / span)
+            + (1.55 if fit_longitude_extent else -0.3)
+            + global_zoom_adjustment,
+        )
     else:
         center_lat, center_lon, zoom = 0.0, 0.0, 1.5
 
@@ -385,8 +698,8 @@ def _build_map(
         data=colored,
         get_position="[plot_lon, lat]",
         get_radius=50000,
-        radius_min_pixels=3,
-        radius_max_pixels=15,
+        radius_min_pixels=2,
+        radius_max_pixels=12,
         get_fill_color="fill_color",
         pickable=True,
         opacity=0.82,
@@ -403,14 +716,20 @@ def _build_map(
     )
     return pdk.Deck(
         layers=[point_layer, boundary_layer],
-        views=[pdk.View(type="MapView", controller=True, repeat=repeat_world)],
+        views=[
+            pdk.View(
+                type="MapView",
+                controller={"scrollZoom": False, "touchZoom": False},
+                repeat=repeat_world,
+            )
+        ],
         initial_view_state=pdk.ViewState(latitude=center_lat, longitude=center_lon, zoom=zoom, pitch=0),
         map_style=pdk.map_styles.CARTO_LIGHT_NO_LABELS,
         tooltip={
             "html": (
                 f"<b>{product_label}</b><br/>"
                 f"Month: {MONTH_LABELS[month]}<br/>"
-                "Lat: {lat}<br/>Lon: {plot_lon}<br/>Value: {value}"
+                "Lat: {lat}<br/>Lon: {plot_lon}<br/>Value: {display_value}"
             ),
             "style": {"backgroundColor": "#173f73", "color": "white"},
         },
@@ -644,9 +963,16 @@ def render_el_nino_event_module(
     # mask file, which only exists for those countries), so it keeps using
     # `boundaries` unchanged.
     boundaries_global = _load_country_boundaries(str(shapefile), _file_mtime(shapefile), tuple())
-
     st.subheader("Monthly Climate and Crop Fields")
-    c1, c2 = st.columns([1.25, 1])
+    focus_options = [None, *dashboard_countries]
+    st.session_state.setdefault("el_nino_field_map_focus", None)
+    st.session_state.setdefault(
+        "el_nino_weighted_map_focus",
+        st.session_state["el_nino_field_map_focus"],
+    )
+    st.session_state.setdefault("el_nino_month", MONTH_ORDER[0])
+    st.session_state.setdefault("weighted_month", st.session_state["el_nino_month"])
+    c1, c2, c3 = st.columns([1.25, 1, 1.25])
     with c1:
         product_id = st.selectbox(
             "Variable",
@@ -655,11 +981,51 @@ def render_el_nino_event_module(
             key="el_nino_product",
         )
     with c2:
-        selected_month = st.selectbox(
-            "Target month",
-            MONTH_ORDER,
-            format_func=lambda x: MONTH_LABELS[x],
-            key="el_nino_month",
+        st.markdown("Target month")
+        previous_month, month_slider, next_month = st.columns([1, 5, 1], gap="small")
+        with previous_month:
+            st.button(
+                "←",
+                key="el_nino_month_previous",
+                help="Previous month",
+                on_click=_step_month,
+                args=("el_nino_month", "weighted_month", -1),
+                width="stretch",
+            )
+        with month_slider:
+            selected_month = st.select_slider(
+                "Target month",
+                options=MONTH_ORDER,
+                format_func=_month_slider_label,
+                key="el_nino_month",
+                label_visibility="collapsed",
+                on_change=_sync_session_value,
+                args=("el_nino_month", "weighted_month"),
+            )
+        with next_month:
+            st.button(
+                "→",
+                key="el_nino_month_next",
+                help="Next month",
+                on_click=_step_month,
+                args=("el_nino_month", "weighted_month", 1),
+                width="stretch",
+            )
+    with c3:
+        field_focus_iso3 = st.selectbox(
+            "Map focus",
+            focus_options,
+            format_func=lambda iso3: "Global view" if iso3 is None else country_label_func(iso3),
+            key="el_nino_field_map_focus",
+            help="Choose a country to set this map's initial center and zoom.",
+            on_change=_sync_session_value,
+            args=("el_nino_field_map_focus", "el_nino_weighted_map_focus"),
+        )
+    field_focus_bounds = _country_bounds(boundaries_global, field_focus_iso3)
+    if field_focus_iso3 and field_focus_bounds is None:
+        st.info(
+            f"No geographic boundary was found for {country_label_func(field_focus_iso3)}; "
+            "showing the global view instead."
         )
 
     points = _load_product_points(geolat_dir, product_id, selected_month)
@@ -667,7 +1033,9 @@ def render_el_nino_event_module(
         st.warning(f"No data were available for {PRODUCTS[product_id]['label']} in {MONTH_LABELS[selected_month]}.")
     else:
         st.caption(PRODUCTS[product_id]["description"])
-        st.pydeck_chart(
+        product_path = _product_path(geolat_dir, product_id)
+        color_limit = _product_color_limit(str(product_path), _file_mtime(product_path))
+        _render_deck_chart(
             _build_map(
                 points,
                 boundaries_global,
@@ -676,12 +1044,31 @@ def render_el_nino_event_module(
                 reverse_colors=(product_id == "Moisture"),
                 fit_longitude_extent=True,
                 repeat_world=False,
+                color_limit=color_limit,
+                focus_bounds=field_focus_bounds,
             ),
-            width="stretch",
+            sync_group="el-nino-event-map-views",
+            view_context=field_focus_iso3 or "global",
+        )
+        if product_id == "Moisture":
+            negative_label, positive_label = "Drier", "Wetter"
+        elif product_id == "Heat":
+            negative_label, positive_label = "Cooler", "Warmer"
+        else:
+            negative_label, positive_label = "Lower", "Higher"
+        _render_map_legend(
+            color_limit,
+            reverse_colors=(product_id == "Moisture"),
+            negative_label=negative_label,
+            positive_label=positive_label,
+        )
+        st.caption(
+            f"{len(points):,} grid cells · colors use a shared 98th-percentile scale "
+            "across all target months for direct comparison."
         )
 
     st.subheader("Weighted Climate Exposure")
-    w1, w2, w3 = st.columns([1, 1, 1])
+    w1, w2, w3, w4 = st.columns([1, 1, 1, 1.25])
     with w1:
         climate_id = st.selectbox(
             "Climate variable",
@@ -696,11 +1083,51 @@ def render_el_nino_event_module(
             key="weighted_weight",
         )
     with w3:
-        weighted_month = st.selectbox(
-            "Weighted field month",
-            MONTH_ORDER,
-            format_func=lambda x: MONTH_LABELS[x],
-            key="weighted_month",
+        st.markdown("Weighted field month")
+        previous_month, month_slider, next_month = st.columns([1, 5, 1], gap="small")
+        with previous_month:
+            st.button(
+                "←",
+                key="weighted_month_previous",
+                help="Previous month",
+                on_click=_step_month,
+                args=("weighted_month", "el_nino_month", -1),
+                width="stretch",
+            )
+        with month_slider:
+            weighted_month = st.select_slider(
+                "Weighted field month",
+                options=MONTH_ORDER,
+                format_func=_month_slider_label,
+                key="weighted_month",
+                label_visibility="collapsed",
+                on_change=_sync_session_value,
+                args=("weighted_month", "el_nino_month"),
+            )
+        with next_month:
+            st.button(
+                "→",
+                key="weighted_month_next",
+                help="Next month",
+                on_click=_step_month,
+                args=("weighted_month", "el_nino_month", 1),
+                width="stretch",
+            )
+    with w4:
+        weighted_focus_iso3 = st.selectbox(
+            "Map focus",
+            focus_options,
+            format_func=lambda iso3: "Global view" if iso3 is None else country_label_func(iso3),
+            key="el_nino_weighted_map_focus",
+            help="Choose a country to set this map's initial center and zoom.",
+            on_change=_sync_session_value,
+            args=("el_nino_weighted_map_focus", "el_nino_field_map_focus"),
+        )
+    weighted_focus_bounds = _country_bounds(boundaries_global, weighted_focus_iso3)
+    if weighted_focus_iso3 and weighted_focus_bounds is None:
+        st.info(
+            f"No geographic boundary was found for {country_label_func(weighted_focus_iso3)}; "
+            "showing the global view instead."
         )
 
     population_path = _find_population_grid(geolat_dir)
@@ -742,17 +1169,34 @@ def render_el_nino_event_module(
             f"max(abs(value)) within each country for {MONTH_LABELS[weighted_month]}."
         )
 
-    st.pydeck_chart(
+    _render_deck_chart(
         _build_map(
             weighted_for_map,
             boundaries,
             f"Weighted {PRODUCTS[climate_id]['label']} by {weight_id}",
             weighted_month,
             reverse_colors=(climate_id == "Moisture"),
+            fit_longitude_extent=True,
+            repeat_world=False,
+            color_limit=1.0,
+            focus_bounds=weighted_focus_bounds,
+            global_zoom_adjustment=-0.5,
+            global_center_latitude=0.0,
         ),
-        width="stretch",
+        sync_group="el-nino-event-map-views",
+        view_context=weighted_focus_iso3 or "global",
     )
-        
+    _render_map_legend(
+        1.0,
+        reverse_colors=(climate_id == "Moisture"),
+        negative_label="Drier exposure" if climate_id == "Moisture" else "Cooler exposure",
+        positive_label="Wetter exposure" if climate_id == "Moisture" else "Warmer exposure",
+    )
+    countries_mapped = weighted_for_map.get("iso_a3", pd.Series(dtype=str)).nunique()
+    st.caption(
+        f"{len(weighted_for_map):,} grid cells across {countries_mapped:,} countries · "
+        "each country uses a fixed -1 to +1 normalized scale."
+    )
 
     ts = _country_weighted_timeseries(
         str(geolat_dir),

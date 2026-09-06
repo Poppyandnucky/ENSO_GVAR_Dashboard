@@ -6,3 +6,4 @@ __pycache__/
 ~
 analysis/Dash_Output/kf_em_diagnostics/
 analysis/Dash_Output/**/*.png
+.idea/

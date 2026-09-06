@@ -1292,6 +1292,9 @@ def plot_metric_impact_map(
     min_col="cumulative_min",
     max_col="cumulative_max",
     driver_label="ENSO",
+    aggregation_label="Cumulative",
+    period_label=None,
+    color_limit=None,
 ):
     if summary_df.empty:
         return None
@@ -1315,8 +1318,27 @@ def plot_metric_impact_map(
         right_on="country",
         how="left",
     )
-    vmax = float(np.nanmax(np.abs(df[mean_col]))) if df[mean_col].notna().any() else 1.0
+    bounds = np.asarray(df.total_bounds, dtype=float)
+    if len(bounds) != 4 or not np.isfinite(bounds).all():
+        bounds = np.array([-180.0, -60.0, 180.0, 85.0])
+    west, south, east, north = bounds
+    longitude_span = max(east - west, 1.0)
+    latitude_span = max(north - south, 1.0)
+    initial_projection_scale = max(
+        0.75,
+        min(4.0, 0.85 * min(360.0 / longitude_span, 180.0 / latitude_span)),
+    )
+    initial_center = {
+        "lon": (west + east) / 2.0,
+        "lat": (south + north) / 2.0,
+    }
+    vmax = color_limit
+    if vmax is None:
+        vmax = float(np.nanmax(np.abs(df[mean_col]))) if df[mean_col].notna().any() else 1.0
     vmax = max(vmax, 1e-6)
+    aggregation_lower = aggregation_label.lower()
+    period_suffix = f" ({period_label})" if period_label else ""
+    value_description = f"{aggregation_label} difference"
     fig = px.choropleth(
         df,
         geojson=df.geometry,
@@ -1334,27 +1356,176 @@ def plot_metric_impact_map(
         },
         labels={
             "country_name": "Country",
-            min_col: "Min cumulative difference",
-            mean_col: "Mean cumulative difference",
-            max_col: "Max cumulative difference",
+            min_col: f"Min {aggregation_lower} difference",
+            mean_col: f"Mean {aggregation_lower} difference",
+            max_col: f"Max {aggregation_lower} difference",
         },
-        title=f"{response_var}: Cumulative impact relative to a no-{driver_label} baseline",
+        title=(
+            f"{response_var}: {aggregation_label} impact{period_suffix} "
+            f"relative to a no-{driver_label} baseline"
+        ),
     )
     fig.update_traces(marker_line_color="#4D4D4D", marker_line_width=0.8)
     fig.update_geos(
-        fitbounds="locations",
+        fitbounds=False,
         visible=False,
         showcountries=True,
         countrycolor="#B8B8B8",
         showcoastlines=True,
         coastlinecolor="#B8B8B8",
+        center=initial_center,
+        projection_scale=initial_projection_scale,
     )
     fig.update_layout(
         height=520,
         margin={"r": 0, "t": 50, "l": 0, "b": 0},
-        coloraxis_colorbar=dict(title="Mean cumulative difference"),
+        coloraxis_colorbar=dict(title=f"Mean {value_description.lower()}"),
     )
     return fig
+
+
+def _quarter_label(value):
+    if value is None or pd.isna(value):
+        return "Unavailable"
+    quarter = pd.Timestamp(value).to_period("Q")
+    return f"{quarter.year} Q{quarter.quarter}"
+
+
+def _step_map_quarter(options, delta):
+    options = list(options)
+    if not options:
+        return
+    current = pd.Timestamp(st.session_state.get("scenario_map_quarter", options[0]))
+    normalized = [pd.Timestamp(value) for value in options]
+    current_index = normalized.index(current) if current in normalized else 0
+    new_index = max(0, min(len(normalized) - 1, current_index + delta))
+    st.session_state["scenario_map_quarter"] = normalized[new_index]
+
+
+def render_synchronized_impact_maps(map_figures):
+    """Render up to four geo maps with linked pan, zoom, and reset state."""
+    valid_figures = [(label, fig) for label, fig in map_figures if fig is not None]
+    if not valid_figures:
+        return False
+
+    combined = make_subplots(
+        rows=2,
+        cols=2,
+        specs=[[{"type": "geo"}, {"type": "geo"}], [{"type": "geo"}, {"type": "geo"}]],
+        subplot_titles=[label for label, _ in valid_figures],
+        horizontal_spacing=0.08,
+        vertical_spacing=0.10,
+    )
+    colorbar_positions = [
+        {"x": 0.46, "y": 0.78},
+        {"x": 1.00, "y": 0.78},
+        {"x": 0.46, "y": 0.22},
+        {"x": 1.00, "y": 0.22},
+    ]
+    for index, (_, source) in enumerate(valid_figures):
+        row, col = divmod(index, 2)
+        row += 1
+        col += 1
+        source_coloraxis = source.layout.coloraxis
+        for trace in source.data:
+            trace.update(
+                coloraxis=None,
+                zmin=source_coloraxis.cmin,
+                zmax=source_coloraxis.cmax,
+                colorscale=source_coloraxis.colorscale,
+                colorbar={
+                    "title": source_coloraxis.colorbar.title.text,
+                    "len": 0.34,
+                    "thickness": 12,
+                    **colorbar_positions[index],
+                },
+            )
+            combined.add_trace(trace, row=row, col=col)
+
+        geo_key = "geo" if index == 0 else f"geo{index + 1}"
+        source_geo = source.layout.geo.to_plotly_json()
+        # A standalone Plotly map owns the full [0, 1] x [0, 1] domain.
+        # Keep the domains assigned by make_subplots so the maps do not stack.
+        source_geo.pop("domain", None)
+        combined.update_layout(**{geo_key: source_geo})
+
+    combined.update_layout(
+        height=980,
+        margin={"r": 35, "t": 45, "l": 10, "b": 10},
+        showlegend=False,
+    )
+    sync_script = """
+    (() => {
+      const graph = document.getElementById('{plot_id}');
+      const geoNames = ['geo', 'geo2', 'geo3', 'geo4'];
+      const fixedDomains = Object.fromEntries(
+        geoNames
+          .filter((name) => graph.layout[name])
+          .map((name) => [name, JSON.parse(JSON.stringify(graph.layout[name].domain))])
+      );
+      const normalizeLongitude = (value) => {
+        if (!Number.isFinite(value)) return 0;
+        return ((value + 180) % 360 + 360) % 360 - 180;
+      };
+      let synchronizing = false;
+
+      graph.on('plotly_relayout', (changes) => {
+        if (synchronizing) return;
+        const sourceGeo = geoNames.find((name) => Object.keys(changes).some(
+          (key) => key === `${name}.center` || key.startsWith(`${name}.center.`) ||
+                   key === `${name}.projection.scale` ||
+                   key === `${name}.projection.rotation` ||
+                   key.startsWith(`${name}.projection.rotation.`)
+        ));
+        if (!sourceGeo) return;
+
+        const current = graph.layout[sourceGeo];
+        const changedCenter = changes[`${sourceGeo}.center`] || {
+          lon: changes[`${sourceGeo}.center.lon`] ?? current.center.lon,
+          lat: changes[`${sourceGeo}.center.lat`] ?? current.center.lat
+        };
+        const center = {
+          ...changedCenter,
+          lon: normalizeLongitude(changedCenter.lon)
+        };
+        const scale = changes[`${sourceGeo}.projection.scale`] ?? current.projection.scale;
+        const currentRotation = current.projection.rotation || {lon: 0, lat: 0, roll: 0};
+        const changedRotation = changes[`${sourceGeo}.projection.rotation`] || {
+          lon: changes[`${sourceGeo}.projection.rotation.lon`] ?? currentRotation.lon ?? 0,
+          lat: changes[`${sourceGeo}.projection.rotation.lat`] ?? currentRotation.lat ?? 0,
+          roll: changes[`${sourceGeo}.projection.rotation.roll`] ?? currentRotation.roll ?? 0
+        };
+        const rotation = {
+          ...changedRotation,
+          lon: normalizeLongitude(changedRotation.lon)
+        };
+        const update = {};
+        geoNames.forEach((name) => {
+          if (graph.layout[name]) {
+            update[`${name}.center`] = center;
+            update[`${name}.projection.scale`] = scale;
+            update[`${name}.projection.rotation`] = rotation;
+            update[`${name}.domain`] = fixedDomains[name];
+          }
+        });
+        synchronizing = true;
+        Plotly.relayout(graph, update).finally(() => { synchronizing = false; });
+      });
+    })();
+    """
+    chart_html = combined.to_html(
+        full_html=False,
+        include_plotlyjs="cdn",
+        config={
+            "responsive": True,
+            "scrollZoom": False,
+            "modeBarButtonsToRemove": ["pan2d", "select2d", "lasso2d"],
+        },
+        post_script=sync_script,
+    )
+    components.html(chart_html, height=1000, scrolling=False)
+    return True
+
 
 def _percent_rank(s):
     x = pd.to_numeric(s, errors="coerce")
@@ -2419,7 +2590,7 @@ with tab_scenario:
                     c for c in current_scenario_countries if c in country_options
                 ] or [country]
 
-        st_subheader("Multi-country comparison and cumulative impact maps")
+        st_subheader("Multi-country comparison and climate impact maps")
         scenario_countries = st.multiselect(
             "Countries",
             options=country_options,
@@ -2439,7 +2610,7 @@ with tab_scenario:
         else:
             st.plotly_chart(fig_core, width="stretch")
 
-        st.markdown("**Cumulative impact maps**")
+        st.markdown("**Climate impact maps**")
         map_specs = []
         if enso_active:
             map_specs.append(
@@ -2448,6 +2619,9 @@ with tab_scenario:
                     "mean_col": "cumulative_mean",
                     "min_col": "cumulative_min",
                     "max_col": "cumulative_max",
+                    "quarterly_mean_col": "impact_mean",
+                    "quarterly_min_col": "impact_min",
+                    "quarterly_max_col": "impact_max",
                 }
             )
         if iod_active:
@@ -2457,6 +2631,9 @@ with tab_scenario:
                     "mean_col": "cumulative_iod_mean",
                     "min_col": "cumulative_iod_min",
                     "max_col": "cumulative_iod_max",
+                    "quarterly_mean_col": "impact_iod_mean",
+                    "quarterly_min_col": "impact_iod_min",
+                    "quarterly_max_col": "impact_iod_max",
                 }
             )
         if heat_var_active:
@@ -2467,6 +2644,9 @@ with tab_scenario:
                     "mean_col": "cumulative_heat_mean",
                     "min_col": "cumulative_heat_min",
                     "max_col": "cumulative_heat_max",
+                    "quarterly_mean_col": "impact_heat_mean",
+                    "quarterly_min_col": "impact_heat_min",
+                    "quarterly_max_col": "impact_heat_max",
                 }
             )
         if not map_specs:
@@ -2477,38 +2657,139 @@ with tab_scenario:
             )
             st.info(f"No climate counterfactual maps are available for the {selected_variant_label} variant.")
         else:
-            st.caption(
-                "Map range: 2026Q2-2027Q1 cumulative climate-driver impact. Maps show all "
-                "12 dashboard countries and do not depend on the multi-country selection above."
-            )
             map_countries = country_options
             metrics_for_maps = [v for v in MACRO_IMPACT_VARS if v in panel.columns]
+            map_data = {}
+            available_quarters = set()
+            for metric in metrics_for_maps:
+                metric_df = build_forecast_plot_df(
+                    climate_variant_bundle,
+                    panel,
+                    map_countries,
+                    metric,
+                    history_start=None,
+                )
+                quarterly_summary, cumulative_summary = summarize_forecast_ranges(metric_df)
+                scenario_quarters = quarterly_summary[
+                    quarterly_summary["period_type"].eq("Scenario forecast")
+                ].copy()
+                if scenario_quarters.empty:
+                    scenario_quarters = quarterly_summary.copy()
+                scenario_quarters["quarter"] = pd.to_datetime(
+                    scenario_quarters["quarter"], errors="coerce"
+                ).dt.to_period("Q").dt.to_timestamp()
+                available_quarters.update(scenario_quarters["quarter"].dropna().tolist())
+                map_data[metric] = {
+                    "quarterly": scenario_quarters,
+                    "cumulative": cumulative_summary,
+                }
+
+            map_mode = st.selectbox(
+                "Map aggregation",
+                options=["Cumulative", "Quarterly"],
+                key="scenario_map_aggregation",
+            )
+            selected_map_quarter = None
+            quarter_options = sorted(pd.Timestamp(value) for value in available_quarters)
+            if map_mode == "Quarterly" and quarter_options:
+                current_quarter = pd.Timestamp(
+                    st.session_state.get("scenario_map_quarter", quarter_options[0])
+                )
+                if current_quarter not in quarter_options:
+                    st.session_state["scenario_map_quarter"] = quarter_options[0]
+                st.markdown("Forecast quarter")
+                previous_q, quarter_slider, next_q = st.columns([0.5, 5, 0.5], gap="small")
+                with previous_q:
+                    st.button(
+                        "←",
+                        key="scenario_map_quarter_previous",
+                        help="Previous quarter",
+                        on_click=_step_map_quarter,
+                        args=(tuple(quarter_options), -1),
+                        width="stretch",
+                    )
+                with quarter_slider:
+                    selected_map_quarter = st.select_slider(
+                        "Forecast quarter",
+                        options=quarter_options,
+                        format_func=_quarter_label,
+                        key="scenario_map_quarter",
+                        label_visibility="collapsed",
+                    )
+                with next_q:
+                    st.button(
+                        "→",
+                        key="scenario_map_quarter_next",
+                        help="Next quarter",
+                        on_click=_step_map_quarter,
+                        args=(tuple(quarter_options), 1),
+                        width="stretch",
+                    )
+
+            if map_mode == "Quarterly" and not quarter_options:
+                st.info("No quarterly forecast periods are available for the selected specification.")
+            elif map_mode == "Quarterly":
+                st.caption(
+                    f"Maps show the {_quarter_label(selected_map_quarter)} climate-driver impact. "
+                    "All maps use the same selected quarter."
+                )
+            else:
+                st.caption(
+                    "Map range: cumulative scenario-forecast climate-driver impact. Maps show all "
+                    "12 dashboard countries and do not depend on the multi-country selection above."
+                )
+
             for spec in map_specs:
                 st.markdown(f"**No-{spec['label']} counterfactual maps**")
-                map_cols = st.columns(2)
-                for i, metric in enumerate(metrics_for_maps):
-                    metric_df = build_forecast_plot_df(
-                        climate_variant_bundle,
-                        panel,
-                        map_countries,
-                        metric,
-                        history_start=None,
-                    )
-                    _, metric_summary = summarize_forecast_ranges(metric_df)
+                synchronized_maps = []
+                missing_metrics = []
+                for metric in metrics_for_maps:
+                    if map_mode == "Quarterly":
+                        metric_summary = map_data[metric]["quarterly"]
+                        metric_summary = metric_summary[
+                            metric_summary["quarter"].eq(pd.Timestamp(selected_map_quarter))
+                        ].copy()
+                        mean_col = spec["quarterly_mean_col"]
+                        min_col = spec["quarterly_min_col"]
+                        max_col = spec["quarterly_max_col"]
+                        full_quarterly = map_data[metric]["quarterly"]
+                        color_values = pd.to_numeric(full_quarterly[mean_col], errors="coerce")
+                        color_limit = (
+                            float(np.nanmax(np.abs(color_values)))
+                            if color_values.notna().any()
+                            else None
+                        )
+                        aggregation_label = "Quarterly"
+                        period_label = _quarter_label(selected_map_quarter)
+                    else:
+                        metric_summary = map_data[metric]["cumulative"]
+                        mean_col = spec["mean_col"]
+                        min_col = spec["min_col"]
+                        max_col = spec["max_col"]
+                        color_limit = None
+                        aggregation_label = "Cumulative"
+                        period_label = None
                     fig_map = plot_metric_impact_map(
                         metric_summary,
                         metric,
                         countries=map_countries,
-                        mean_col=spec["mean_col"],
-                        min_col=spec["min_col"],
-                        max_col=spec["max_col"],
+                        mean_col=mean_col,
+                        min_col=min_col,
+                        max_col=max_col,
                         driver_label=spec["label"],
+                        aggregation_label=aggregation_label,
+                        period_label=period_label,
+                        color_limit=color_limit,
                     )
-                    with map_cols[i % 2]:
-                        if fig_map is not None:
-                            st.plotly_chart(fig_map, width="stretch")
-                        else:
-                            st.info(f"No cumulative no-{spec['label']} map data for {metric}.")
+                    if fig_map is not None:
+                        synchronized_maps.append((metric, fig_map))
+                    else:
+                        missing_metrics.append(metric)
+                render_synchronized_impact_maps(synchronized_maps)
+                for metric in missing_metrics:
+                    st.info(
+                        f"No {map_mode.lower()} no-{spec['label']} map data for {metric}."
+                    )
 
 
 with tab_event_study:
