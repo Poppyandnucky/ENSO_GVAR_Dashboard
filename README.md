@@ -95,6 +95,33 @@ This launches the interactive application in your browser.
 
 All results are computed dynamically during execution and displayed in the app.
 
+### Adjust the Dashboard Font Size
+
+The app-wide font size is controlled by `baseFontSize` in
+`.streamlit/config.toml`:
+
+```toml
+[theme]
+baseFontSize = 20
+```
+
+The Streamlit default is 16 pixels. Use `18` for a subtler increase, `20` for
+the current setting, or a larger value for greater accessibility. Save the configuration
+file and reload the app to see the change. This setting scales ordinary text,
+widget labels, captions, tables, and other interface elements globally while
+preserving their relative typographic hierarchy.
+
+Some Streamlit widgets apply smaller component-specific font sizes. The global
+styles in `inject_global_control_styles()` enforce a `1rem` minimum for body
+text, menus, widget labels, controls, captions, expanders, and tables, plus a
+`1.2rem` minimum for tab labels. Because these values use `rem`, changing
+`baseFontSize` also changes those minimum sizes.
+
+Users can temporarily override the default for their own browser session with
+the **Dashboard text size** slider under **Dashboard Guide → Display settings**.
+The slider adjusts interface text and the legends, axis titles, and tick labels
+in Plotly charts. **Reset text size** restores the `baseFontSize` value above.
+
 ---
 
 ## What This Project Does *Not* Do (Yet)

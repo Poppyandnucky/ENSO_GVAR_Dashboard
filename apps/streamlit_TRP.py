@@ -10,7 +10,6 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 import streamlit as st
-import streamlit.components.v1 as components
 import geopandas as gpd
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -23,6 +22,17 @@ from statsmodels.tools.sm_exceptions import PerfectSeparationWarning
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+
+from apps.modules.plot_style import (
+    DASHBOARD_FONT_STATE_KEY,
+    MAX_DASHBOARD_FONT_SIZE,
+    MIN_DASHBOARD_FONT_SIZE,
+    apply_plot_fonts,
+    configured_dashboard_font_size,
+    dashboard_font_size,
+    plot_font_size,
+    render_plotly_chart,
+)
 
 import warnings
 warnings.simplefilter("default", Warning)
@@ -177,14 +187,56 @@ def render_tab_description(section_index):
         st.markdown(f"**Key question**  \n{question}")
 
 
-def inject_global_control_styles():
+def inject_global_control_styles(font_size: int):
+    st.markdown(
+        f"""
+        <style>
+        :root {{
+            --dashboard-font-size: {font_size}px;
+            --dashboard-plot-font-size: {max(12, font_size - 1)}px;
+            --dashboard-tab-font-size: {font_size * 1.2:.1f}px;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     st.markdown(
         """
         <style>
+        /*
+         * Streamlit's theme baseFontSize establishes the root scale, but
+         * several BaseWeb widgets retain smaller component-level sizes.
+         * Keep all non-heading interface text at least 1rem (the configured
+         * base size) without flattening larger text such as tab labels.
+         */
+        [data-testid="stMarkdownContainer"] :is(p, li),
+        [data-testid="stWidgetLabel"] p,
+        [data-testid="stCaptionContainer"] p,
+        [data-testid="stExpander"] summary,
+        [data-testid="stAppViewContainer"] :is(input, textarea),
+        [data-testid="stAppViewContainer"] button,
+        [data-baseweb="select"] :is(div, span, input),
+        [data-baseweb="popover"] :is(li, [role="option"], [role="menuitem"]),
+        [role="listbox"] :is(li, [role="option"]),
+        [role="menu"] :is(li, [role="menuitem"]),
+        [data-testid="stDataFrame"] :is(td, th),
+        [data-testid="stTable"] :is(td, th) {
+            font-size: var(--dashboard-font-size) !important;
+        }
+        .stTabs [role="tab"] p {
+            font-size: var(--dashboard-tab-font-size) !important;
+        }
         [data-testid="stLayoutWrapper"]:has(.st-key-analysis_scope_panel) {
             position: sticky;
             top: 3.5rem;
             z-index: 999;
+        }
+        [role="tablist"][data-dashboard-primary-tabs="true"] {
+            position: sticky;
+            top: calc(3.5rem + var(--analysis-scope-sticky-height, 0px));
+            z-index: 998;
+            background-color: #ebf2f8;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
         }
         .st-key-analysis_scope_panel {
             background-color: #eef5fc;
@@ -195,10 +247,30 @@ def inject_global_control_styles():
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         }
         .st-key-analysis_scope_panel h3 {
-            margin: 0 0 10px 0;
+            margin: 0;
             color: #173f73;
             font-size: 1.35rem;
             font-weight: 800;
+        }
+        .analysis-scope-heading {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            min-height: 54px;
+        }
+        .analysis-scope-help {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            border: 1.5px solid #8a8f98;
+            border-radius: 50%;
+            color: #6b7280;
+            font-size: 12px !important;
+            font-weight: 700;
+            line-height: 18px;
+            cursor: help;
         }
         .st-key-analysis_scope_panel p {
             margin: 0 0 14px 0;
@@ -222,7 +294,7 @@ def inject_global_control_styles():
         .st-key-analysis_scope_panel [data-baseweb="select"] input {
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
-            font-size: 1.12rem !important;
+            font-size: calc(var(--dashboard-font-size) * 1.12) !important;
             font-weight: 700;
         }
         .st-key-analysis_scope_panel [data-baseweb="select"] svg {
@@ -244,6 +316,111 @@ def inject_global_control_styles():
         </style>
         """,
         unsafe_allow_html=True,
+    )
+
+
+def reset_dashboard_font_size(default_size: int) -> None:
+    st.session_state[DASHBOARD_FONT_STATE_KEY] = default_size
+
+
+def install_analysis_scope_tab_observer() -> None:
+    """Hide global controls on tabs that do not use country/response selections."""
+    st.iframe(
+        """
+        <!doctype html>
+        <html><body><script>
+        (() => {
+          const parentDocument = window.parent.document;
+          const climateTabText = "2026-27 El Nino Event";
+          const scopeHiddenTabs = new Set([
+            climateTabText,
+            "Dashboard Guide",
+            "Feedback",
+          ]);
+
+          function findClimateTab() {
+            return Array.from(
+              parentDocument.querySelectorAll('[role="tablist"] [role="tab"]')
+            ).find((tab) => tab.textContent.trim() === climateTabText);
+          }
+
+          function updateAnalysisScope() {
+            const climateTab = findClimateTab();
+            const scopePanel = parentDocument.querySelector('.st-key-analysis_scope_panel');
+            if (!climateTab || !scopePanel) return;
+            const scopeWrapper = scopePanel.closest('[data-testid="stLayoutWrapper"]') || scopePanel;
+            const primaryTabList = climateTab.closest('[role="tablist"]');
+            const activeTab = primaryTabList?.querySelector('[role="tab"][aria-selected="true"]');
+            const scopeShouldHide = scopeHiddenTabs.has(activeTab?.textContent.trim());
+            if (scopeShouldHide) {
+              scopeWrapper.style.setProperty('display', 'none', 'important');
+            } else {
+              scopeWrapper.style.removeProperty('display');
+            }
+            if (primaryTabList) {
+              primaryTabList.dataset.dashboardPrimaryTabs = 'true';
+              const scopeHeight = scopeShouldHide
+                ? 0
+                : scopeWrapper.getBoundingClientRect().height;
+              primaryTabList.style.setProperty(
+                '--analysis-scope-sticky-height',
+                `${scopeHeight}px`,
+              );
+            }
+            if (activeTab?.textContent.trim() === 'Structural Break Analysis') {
+              const notifyMapIframes = () => {
+                parentDocument.querySelectorAll('iframe').forEach((iframe) => {
+                  iframe.contentWindow?.postMessage(
+                    {type: 'dashboard-tab-visible', tab: 'Structural Break Analysis'},
+                    '*',
+                  );
+                });
+              };
+              [0, 100, 300, 750].forEach((delay) => {
+                window.setTimeout(notifyMapIframes, delay);
+              });
+            }
+          }
+
+          updateAnalysisScope();
+          const observer = new MutationObserver(updateAnalysisScope);
+          observer.observe(parentDocument.body, {
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['aria-selected'],
+          });
+          const scopePanel = parentDocument.querySelector('.st-key-analysis_scope_panel');
+          const scopeResizeObserver = scopePanel
+            ? new ResizeObserver(updateAnalysisScope)
+            : null;
+          if (scopeResizeObserver) scopeResizeObserver.observe(scopePanel);
+          window.parent.addEventListener('resize', updateAnalysisScope);
+          const activeTabResizeTimer = window.setInterval(() => {
+            const activeTab = findClimateTab()
+              ?.closest('[role="tablist"]')
+              ?.querySelector('[role="tab"][aria-selected="true"]');
+            if (activeTab?.textContent.trim() !== 'Structural Break Analysis') return;
+            parentDocument.querySelectorAll('iframe').forEach((iframe) => {
+              iframe.contentWindow?.postMessage(
+                {type: 'dashboard-tab-visible', tab: 'Structural Break Analysis'},
+                '*',
+              );
+            });
+          }, 750);
+
+          const iframeHost = window.frameElement?.closest('[data-testid="stElementContainer"]');
+          if (iframeHost) iframeHost.style.display = 'none';
+          window.addEventListener('beforeunload', () => {
+            observer.disconnect();
+            if (scopeResizeObserver) scopeResizeObserver.disconnect();
+            window.clearInterval(activeTabResizeTimer);
+            window.parent.removeEventListener('resize', updateAnalysisScope);
+          });
+        })();
+        </script></body></html>
+        """,
+        height=1,
+        tab_index=-1,
     )
 
 
@@ -1408,6 +1585,8 @@ def render_synchronized_impact_maps(map_figures):
     if not valid_figures:
         return False
 
+    map_text_size = plot_font_size()
+
     combined = make_subplots(
         rows=2,
         cols=2,
@@ -1434,7 +1613,11 @@ def render_synchronized_impact_maps(map_figures):
                 zmax=source_coloraxis.cmax,
                 colorscale=source_coloraxis.colorscale,
                 colorbar={
-                    "title": source_coloraxis.colorbar.title.text,
+                    "title": {
+                        "text": source_coloraxis.colorbar.title.text,
+                        "font": {"size": map_text_size},
+                    },
+                    "tickfont": {"size": map_text_size},
                     "len": 0.34,
                     "thickness": 12,
                     **colorbar_positions[index],
@@ -1453,7 +1636,9 @@ def render_synchronized_impact_maps(map_figures):
         height=980,
         margin={"r": 35, "t": 45, "l": 10, "b": 10},
         showlegend=False,
+        hoverlabel={"font": {"size": map_text_size}},
     )
+    apply_plot_fonts(combined)
     sync_script = """
     (() => {
       const graph = document.getElementById('{plot_id}');
@@ -1523,7 +1708,7 @@ def render_synchronized_impact_maps(map_figures):
         },
         post_script=sync_script,
     )
-    components.html(chart_html, height=1000, scrolling=False)
+    st.iframe(chart_html, height=1000)
     return True
 
 
@@ -1836,12 +2021,22 @@ def render_map_color_legend():
             )
 
 
-def prepare_structural_break_map_html(html_text: str) -> str:
-    """Tidy the pre-generated Plotly map before embedding it in Streamlit."""
+def prepare_structural_break_map_html(html_text: str, font_size: int) -> str:
+    """Restyle a pre-generated Plotly map for the dashboard."""
     html_text = re.sub(
         r'"title":\{"text":"Structural Break Map - \d{4}"\}',
-        '"title":{"text":""}',
+        (
+            '"title":{"text":""},"height":850,"autosize":true,'
+            '"margin":{"l":5,"r":5,"t":10,"b":5},'
+            f'"font":{{"size":{font_size}}},'
+            f'"hoverlabel":{{"font":{{"size":{font_size}}}}},'
+            '"paper_bgcolor":"#ffffff"'
+        ),
         html_text,
+    )
+    html_text = html_text.replace(
+        '{"responsive": true}',
+        '{"responsive": true, "scrollZoom": false}',
     )
     html_text = html_text.replace(
         '"legend":{"title":{"text":"point_color"},"tracegroupgap":0,"itemsizing":"constant"}',
@@ -1849,20 +2044,120 @@ def prepare_structural_break_map_html(html_text: str) -> str:
     )
     html_text = html_text.replace('"point_color"', '"Structural break score"')
     html_text = html_text.replace('"point_"', '"Structural break score"')
-    html_text += """
+    html_text = html_text.replace(
+        "</head>",
+        """
+        <style>
+          html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+          .plotly-graph-div { width: 100% !important; height: 100% !important; }
+        </style>
+        </head>
+        """,
+    )
+    map_setup_script = f"""
     <script>
-    setTimeout(function() {
+    setTimeout(function() {{
       var gd = document.querySelector(".plotly-graph-div");
-      if (!gd || !window.Plotly) {
+      if (!gd || !window.Plotly) {{
         return;
-      }
-      window.Plotly.relayout(gd, {
+      }}
+      window.Plotly.relayout(gd, {{
         "title.text": "",
-        "showlegend": false
-      });
-    }, 500);
+        "showlegend": false,
+        "autosize": true,
+        "height": 850,
+        "margin.l": 5,
+        "margin.r": 5,
+        "margin.t": 10,
+        "margin.b": 5,
+        "font.size": {font_size},
+        "hoverlabel.font.size": {font_size},
+        "paper_bgcolor": "#ffffff",
+        "geo.bgcolor": "#ffffff",
+        "geo.projection.type": "natural earth",
+        "geo.showland": true,
+        "geo.landcolor": "#f3f4f6",
+        "geo.showocean": true,
+        "geo.oceancolor": "#eaf2f8",
+        "geo.showlakes": true,
+        "geo.lakecolor": "#eaf2f8",
+        "geo.showcountries": true,
+        "geo.countrycolor": "#b8b8b8",
+        "geo.countrywidth": 0.7,
+        "geo.showcoastlines": true,
+        "geo.coastlinecolor": "#9ca3af",
+        "geo.coastlinewidth": 0.8
+      }});
+      window.Plotly.restyle(gd, {{
+        "marker.opacity": 0.88,
+        "marker.line.color": "#ffffff",
+        "marker.line.width": 1
+      }});
+      if (gd._context) gd._context.scrollZoom = false;
+      const resizeMap = function() {{
+        window.requestAnimationFrame(function() {{
+          window.Plotly.Plots.resize(gd);
+        }});
+      }};
+      let visibleTabLayoutApplied = false;
+      const redrawGeoProjection = function() {{
+        if (visibleTabLayoutApplied || window.innerWidth <= 0) return;
+        visibleTabLayoutApplied = true;
+        const projectionScale = gd.layout?.geo?.projection?.scale || 1;
+        window.Plotly.Plots.resize(gd);
+        window.Plotly.relayout(gd, {{
+          "geo.projection.scale": projectionScale + 0.000001
+        }}).then(function() {{
+          return window.Plotly.relayout(gd, {{
+            "geo.projection.scale": projectionScale
+          }});
+        }}).then(resizeMap);
+      }};
+      resizeMap();
+      window.addEventListener("resize", resizeMap);
+      window.addEventListener("message", function(event) {{
+        if (
+          event.data?.type === "dashboard-tab-visible" &&
+          event.data?.tab === "Structural Break Analysis"
+        ) {{
+          redrawGeoProjection();
+          window.setTimeout(redrawGeoProjection, 100);
+          window.setTimeout(redrawGeoProjection, 350);
+        }}
+      }});
+      if (window.ResizeObserver) {{
+        const mapResizeObserver = new ResizeObserver(resizeMap);
+        mapResizeObserver.observe(document.documentElement);
+        mapResizeObserver.observe(document.body);
+        mapResizeObserver.observe(gd);
+        try {{
+          if (window.frameElement) mapResizeObserver.observe(window.frameElement);
+        }} catch (error) {{
+          // The iframe viewport and body observers still handle resizing.
+        }}
+      }}
+      [100, 300, 750, 1500].forEach(function(delay) {{
+        window.setTimeout(resizeMap, delay);
+      }});
+      let lastViewportWidth = 0;
+      let lastViewportHeight = 0;
+      window.setInterval(function() {{
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const renderedWidth = gd._fullLayout ? gd._fullLayout.width : 0;
+        const sizeChanged =
+          viewportWidth !== lastViewportWidth ||
+          viewportHeight !== lastViewportHeight;
+        const layoutIsStale =
+          Math.abs(renderedWidth - gd.clientWidth) > 2;
+        if (sizeChanged || layoutIsStale) resizeMap();
+        lastViewportWidth = viewportWidth;
+        lastViewportHeight = viewportHeight;
+      }}, 300);
+    }}, 0);
     </script>
     """
+    html_text = html_text.replace("</body>", f"{map_setup_script}</body>")
     return html_text
 
 
@@ -2157,7 +2452,12 @@ st.set_page_config(
     page_title="Climate–Macro GVAR Explorer",
     layout="wide"
 )
-inject_global_control_styles()
+CONFIGURED_DASHBOARD_FONT_SIZE = configured_dashboard_font_size()
+st.session_state.setdefault(
+    DASHBOARD_FONT_STATE_KEY,
+    CONFIGURED_DASHBOARD_FONT_SIZE,
+)
+inject_global_control_styles(dashboard_font_size())
 st_title("Climate-Macroeconomic Risk Explorer")
 
 from apps.modules.el_nino_event import render_el_nino_event_module
@@ -2192,31 +2492,40 @@ if not country_options:
     st.stop()
 
 with st.container(key="analysis_scope_panel"):
-    st.markdown(
-        """
-        <h3>🌎 Analysis Scope</h3>
-        <p>Country and Response selections apply to all dashboard modules.</p>
-        """,
-        unsafe_allow_html=True,
+    scope_col, country_col, response_col, _ = st.columns(
+        [1.45, 1.2, 1.2, 2.15],
+        vertical_alignment="center",
     )
-    control_cols = st.columns([1.2, 1.2, 2.6])
-    with control_cols[0]:
+    with scope_col:
+        st.markdown(
+            """
+            <div class="analysis-scope-heading">
+                <h3>🌎 Analysis Scope</h3>
+                <span class="analysis-scope-help"
+                      title="Country and Response selections apply to all dashboard modules.&#10;&#10;Country: Primary country used as the default selection across dashboard tabs.&#10;&#10;Response: Macroeconomic response variable used for scenario charts and impact summaries."
+                      aria-label="Help for Analysis Scope, Country, and Response selections"
+                      role="img" tabindex="0">?</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with country_col:
         country = st.selectbox(
             "Country",
             country_options,
             index=default_option_index(country_options, "CHL"),
             format_func=lambda c: "— More Countries —" if c == _MORE_COUNTRY_SEP else iso3_to_label(c),
             key="country_select",
-            help=HELP_TEXT["country"],
+            label_visibility="collapsed",
         )
         if country == _MORE_COUNTRY_SEP:
             country = "CHL"
-    with control_cols[1]:
+    with response_col:
         response_var = st.selectbox(
             "Response",
             [v for v in MACRO_IMPACT_VARS if v in panel.columns],
             key="response_select",
-            help=HELP_TEXT["response"],
+            label_visibility="collapsed",
         )
 
 # ----- STREAMLIT TABS
@@ -2232,7 +2541,7 @@ with st.container(key="analysis_scope_panel"):
     tab_feedback,
 ) = st.tabs(
     [
-        "2026–2027 El Niño Event",
+        "2026-27 El Nino Event",
         "Scenario Impacts",
         "ENSO Peak Event Study",
         "Structural Break Analysis",
@@ -2240,30 +2549,31 @@ with st.container(key="analysis_scope_panel"):
         "Feedback",
     ]
 )
+install_analysis_scope_tab_observer()
 
 st.markdown("""
 <style>
     /* Style for the text inside ALL tabs */
-    .stTabs [data-baseweb="tab"] p {
-        font-size: 150%;
+    .stTabs [role="tab"] p {
+        font-size: var(--dashboard-tab-font-size);
     }
 
     /* 1. Light background for the entire tab row */
-    div[data-baseweb="tab-list"] {
+    div[role="tablist"] {
         background-color: #EBF2F8;
         border-radius: 8px 8px 0 0;
         padding: 4px 4px 0 4px;
     }
 
     /* 2. Styling the Feedback Tab specifically (2rd tab) */
-    div[data-baseweb="tab-list"] button:nth-of-type(6) {
+    div[data-dashboard-primary-tabs="true"] button:nth-of-type(6) {
         background-color: #E8F4F0 !important;
         margin-left: 10px; /* Optional: adds a small gap to separate it */
         border-radius: 6px 6px 0 0;
     }
 
     /* 3. Text color for the Feedback Tab */
-    div[data-baseweb="tab-list"] button:nth-of-type(6) p {
+    div[data-dashboard-primary-tabs="true"] button:nth-of-type(6) p {
         color: #2E7D6B !important;
         font-weight: 600;
     }
@@ -2271,8 +2581,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 with tab_el_nino_event:
-    st_header("2026–2027 El Niño Event")
-    render_current_selection(country, response_var)
+    st_header("2026-27 El Nino Event")
     render_el_nino_event_module(
         repo_root=_ROOT,
         dashboard_countries=DASHBOARD_COUNTRIES,
@@ -2283,7 +2592,6 @@ with tab_el_nino_event:
 
 with tab_scenario:
     st_header("Scenario Impacts")
-    render_current_selection(country, response_var)
     render_tab_description(0)
 
     forecast_pack = load_forecast_bundle(forecast_pickle_state())
@@ -2396,7 +2704,7 @@ with tab_scenario:
         st_subheader(f"Forecast path for {iso3_to_label(country)}")
         enso_fig = plot_enso_forecast_online(forecast_pack["bundle"], panel)
         if enso_fig is not None:
-            st.plotly_chart(enso_fig, width="stretch")
+            render_plotly_chart(enso_fig, width="stretch")
             st.caption(
                 "Source: NOAA CPC CFSv2 seasonal forecast, "
                 "https://www.cpc.ncep.noaa.gov/products/CFSv2/CFSv2seasonal.shtml"
@@ -2411,7 +2719,7 @@ with tab_scenario:
             if fig_selected is None:
                 st.info("Forecast pickle does not contain data for the selected country/response.")
             else:
-                st.plotly_chart(fig_selected, width="stretch")
+                render_plotly_chart(fig_selected, width="stretch")
                 if approved_setting_text:
                     st.caption(f"Approved model setting: {approved_setting_text}")
                 st.caption(
@@ -2435,7 +2743,7 @@ with tab_scenario:
             if fig_iod is None:
                 st.info("Forecast pickle does not contain an IOD counterfactual for this selection.")
             else:
-                st.plotly_chart(fig_iod, width="stretch")
+                render_plotly_chart(fig_iod, width="stretch")
                 if approved_setting_text:
                     st.caption(f"Approved model setting: {approved_setting_text}")
                 st.caption(
@@ -2453,7 +2761,7 @@ with tab_scenario:
             if fig_heat is None:
                 st.info(f"Forecast pickle does not contain a {heat_label} counterfactual for this selection.")
             else:
-                st.plotly_chart(fig_heat, width="stretch")
+                render_plotly_chart(fig_heat, width="stretch")
                 if approved_setting_text:
                     st.caption(f"Approved model setting: {approved_setting_text}")
                 st.caption(
@@ -2571,10 +2879,10 @@ with tab_scenario:
                         f"{response_var} (max vs no {heat_label})",
                     ]
                 show_tbl = show_tbl.rename(columns=rename_map)
-                st.dataframe(
-                    show_tbl[show_cols],
-                    hide_index=True,
-                    width="stretch",
+                st.table(
+                    show_tbl[show_cols]
+                    .style.hide(axis="index")
+                    .format(precision=2, na_rep="—")
                 )
 
         previous_scenario_country = st.session_state.get("_scenario_country_select")
@@ -2608,7 +2916,7 @@ with tab_scenario:
         if fig_core is None:
             st.info("Forecast pickle does not contain data for the selected comparison countries/response.")
         else:
-            st.plotly_chart(fig_core, width="stretch")
+            render_plotly_chart(fig_core, width="stretch")
 
         st.markdown("**Climate impact maps**")
         map_specs = []
@@ -2794,7 +3102,6 @@ with tab_scenario:
 
 with tab_event_study:
     st_header("ENSO Peak Event Study")
-    render_current_selection(country, response_var)
     render_tab_description(1)
     st.caption(
         "The quarter of each ENSO peak is aligned at t=0. Observed Responses show how each "
@@ -2802,14 +3109,21 @@ with tab_event_study:
         "show the model-estimated impact of ENSO from the selected reference quarter onward."
     )
 
+    event_country_options = [
+        option for option in country_options if option != _MORE_COUNTRY_SEP
+    ]
+    if st.session_state.get("_event_country_scope") != country:
+        st.session_state["event_country"] = country
+        st.session_state["_event_country_scope"] = country
+
     event_cols = st.columns([1, 1.2, 3.8])
     with event_cols[0]:
         event_country = st.selectbox(
             "Country",
-            country_options,
-            index=default_option_index(country_options, "MEX"),
+            event_country_options,
             format_func=iso3_to_label,
             key="event_country",
+            help="Defaults to the country selected in Analysis Scope. You may change it locally until the Analysis Scope country changes again.",
         )
     with event_cols[1]:
         reference_relative_quarter = st.selectbox(
@@ -2836,10 +3150,10 @@ with tab_event_study:
     peak_table = peak_df.copy()
     peak_table["quarter"] = peak_table["quarter"].dt.to_period("Q").map(format_quarter_label)
     peak_table = peak_table.rename(columns={"quarter": "ENSO peak quarter", "ENSO": "ENSO value"})
-    st.dataframe(
-        peak_table[["ENSO peak quarter", "ENSO value"]],
-        hide_index=True,
-        width="stretch",
+    st.table(
+        peak_table[["ENSO peak quarter", "ENSO value"]]
+        .style.hide(axis="index")
+        .format(precision=2, na_rep="—")
     )
     peak_options = peak_table["ENSO peak quarter"].tolist()
     selected_peaks = st.multiselect(
@@ -2850,7 +3164,7 @@ with tab_event_study:
     )
     fig_enso_peaks = plot_enso_peaks(panel, peak_df, selected_peaks)
     if fig_enso_peaks is not None:
-        st.plotly_chart(fig_enso_peaks, width="stretch")
+        render_plotly_chart(fig_enso_peaks, width="stretch")
 
     if not selected_peaks:
         st.info("Select at least one ENSO peak to plot.")
@@ -2935,7 +3249,7 @@ with tab_event_study:
             )
             fig_event.update_xaxes(title_text="Quarters from ENSO peak")
             fig_event.update_yaxes(title_text=y_title)
-            st.plotly_chart(fig_event, width="stretch")
+            render_plotly_chart(fig_event, width="stretch")
 
         render_event_mode_plot("Observed Responses")
         render_event_mode_plot("Estimated ENSO Effects")
@@ -2998,7 +3312,7 @@ with tab_event_study:
             yaxis_title="ND-GAIN Sensitivity Index, 2014-2024 avg",
             height=560,
         )
-        st.plotly_chart(fig_screen, width="stretch")
+        render_plotly_chart(fig_screen, width="stretch")
         st.markdown(f"**Candidate countries ({len(cand)}):** {', '.join(sorted(cand['Country']))}")
 
         st_subheader("Dashboard-Based Validation")
@@ -3027,16 +3341,16 @@ with tab_event_study:
                 yaxis_title="Coefficient Reliability (fraction of quarters, |beta/SE| > 1.96)",
                 height=560,
             )
-            st.plotly_chart(fig_valid, width="stretch")
-            st.dataframe(
-                valid_df[["Country", "realized_enso_influence", "coefficient_reliability", "n_valid_quarters"]],
-                width="stretch",
+            render_plotly_chart(fig_valid, width="stretch")
+            st.table(
+                valid_df[["Country", "realized_enso_influence", "coefficient_reliability", "n_valid_quarters"]]
+                .style.hide(axis="index")
+                .format(precision=3, na_rep="—")
             )
 
 
 with tab_structural_break:
-    st_header("Structural Break")
-    render_current_selection(country, response_var)
+    st_header("Structural Break Analysis")
     render_tab_description(2)
     st.markdown(
         "A set of analyses generated from Kalman filter / EM outputs, "
@@ -3115,16 +3429,31 @@ with tab_structural_break:
         available_iso |= set(wb_top4_df["country"].map(country_to_iso3).dropna().astype(str))
 
     available_iso = [x for x in DASHBOARD_COUNTRIES if x in available_iso]
-    default_sel = [country] if country in available_iso else available_iso[:3]
+    selected_structural_countries = [
+        iso3
+        for iso3 in st.session_state.get("sb_countries", [])
+        if iso3 in available_iso
+    ]
+    if country in available_iso and country not in selected_structural_countries:
+        selected_structural_countries.insert(0, country)
+    if not selected_structural_countries and available_iso:
+        selected_structural_countries = available_iso[:3]
+    st.session_state["sb_countries"] = selected_structural_countries
 
     sb_countries = st.multiselect(
         "Select countries (multi-select)",
         options=available_iso,
-        default=default_sel,
         format_func=iso3_to_label,
         key="sb_countries",
-        help=HELP_TEXT["sb_countries"],
+        help=(
+            "The Analysis Scope country is included automatically. Add or remove "
+            "other countries to control the structural-break panels."
+        ),
     )
+    if country not in available_iso:
+        st.info(
+            f"No structural-break artifacts are available for {iso3_to_label(country)}."
+        )
     use_llm_overlay = st.checkbox(
         "Overlay Gemini identified break years as dotted lines",
         value=False,
@@ -3294,7 +3623,7 @@ with tab_structural_break:
                     fig_sb.add_vline(x=int(yr), line_dash="dot", line_color="goldenrod")
 
         fig_sb.update_layout(margin=dict(l=20, r=90, t=60, b=45))
-        st.plotly_chart(fig_sb, width="stretch")
+        render_plotly_chart(fig_sb, width="stretch")
 
     st_subheader("2) World Bank document information")
     if wb_top4_df.empty:
@@ -3396,10 +3725,10 @@ with tab_structural_break:
                 gdf_display["Country"] = gdf_display["Country"].map(
                     lambda x: iso3_to_label(country_to_iso3(x) or str(x))
                 )
-            st.dataframe(
-                gdf_display,
-                hide_index=True,
-                width="stretch",
+            st.table(
+                gdf_display
+                .style.hide(axis="index")
+                .format(precision=2, na_rep="—")
             )
 
     st_subheader("3.1) Observed impact vs model surprise overlap")
@@ -3446,7 +3775,7 @@ with tab_structural_break:
             climate_years=climate_years,
             iso3=iso3,
         )
-        st.plotly_chart(fig_overlap, width="stretch")
+        render_plotly_chart(fig_overlap, width="stretch")
 
         years_to_show = sorted(set(raw_top) | set(surprise_top) | set(info_years))
         if years_to_show:
@@ -3472,7 +3801,11 @@ with tab_structural_break:
                     "model_surprise_score": "Model Surprise Score",
                 }
             )
-            st.dataframe(summary_df, hide_index=True, width="stretch")
+            st.table(
+                summary_df
+                .style.hide(axis="index")
+                .format(precision=3, na_rep="—")
+            )
 
     # st_subheader("3.2) ENSO coefficients after drop-year refit")
     # if not offline_refit_per_country:
@@ -3565,14 +3898,44 @@ with tab_structural_break:
         else:
             render_map_color_legend()
             try:
-                html_text = prepare_structural_break_map_html(map_path.read_text(encoding="utf-8"))
-                components.html(html_text, height=720, scrolling=True)
+                html_text = prepare_structural_break_map_html(
+                    map_path.read_text(encoding="utf-8"),
+                    plot_font_size(),
+                )
+                st.iframe(html_text, height=875)
             except Exception as e:
                 st.error(f"Failed to load map HTML: {e}")
 
 with tab_guide:
     st_header("Dashboard Guide")
-    render_current_selection(country, response_var)
+    st_subheader("Display settings")
+    font_control, reset_control, _ = st.columns(
+        [2.2, 1, 2.8],
+        vertical_alignment="bottom",
+    )
+    with font_control:
+        st.slider(
+            "Dashboard text size",
+            min_value=MIN_DASHBOARD_FONT_SIZE,
+            max_value=MAX_DASHBOARD_FONT_SIZE,
+            key=DASHBOARD_FONT_STATE_KEY,
+            help=(
+                "Adjusts interface text and Plotly legend, axis-title, and "
+                "tick-label sizes for this browser session."
+            ),
+        )
+    with reset_control:
+        st.button(
+            "Reset text size",
+            width="stretch",
+            on_click=reset_dashboard_font_size,
+            args=(CONFIGURED_DASHBOARD_FONT_SIZE,),
+        )
+    st.caption(
+        f"Current interface size: {dashboard_font_size()} px · "
+        f"Plot text size: {max(12, dashboard_font_size() - 1)} px · "
+        f"Default: {CONFIGURED_DASHBOARD_FONT_SIZE} px"
+    )
     st_subheader("Climate-Macroeconomic Risk Explorer")
     st.markdown(
         """
@@ -3672,13 +4035,11 @@ with tab_guide:
 
 with tab_feedback:
     st_header("Feedback")
-    render_current_selection(country, response_var)
     st.markdown(
         "Use this form to report bugs, confusing results, interpretation issues, "
         "or suggestions for improving the dashboard."
     )
-    components.iframe(
+    st.iframe(
         "https://forms.microsoft.com/Pages/ResponsePage.aspx?id=OPSkn-axO0eAP4b4rt8N7AeTQAt0SklBhYoUFkbp7hdUMzZDUUhITEYwNDE5M0lNMTZSMUhHUjBYRi4u",
         height=775,
-        scrolling=True,
     )

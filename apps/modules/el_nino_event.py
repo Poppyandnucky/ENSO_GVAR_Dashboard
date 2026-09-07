@@ -12,7 +12,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import pydeck as pdk
 import streamlit as st
-import streamlit.components.v1 as components
+
+from apps.modules.plot_style import render_plotly_chart
 
 
 MONTH_ORDER = ["6", "7", "8", "9", "10", "11", "12", "1", "2", "3", "4"]
@@ -412,7 +413,7 @@ def _render_map_legend(
     right_color = "#2166ac" if reverse_colors else "#b2182b"
     st.markdown(
         f"""
-        <div style="margin:-0.45rem 0 0.8rem 0; font-size:0.82rem; color:#4b5563;">
+        <div style="margin:-0.45rem 0 0.8rem 0; font-size:var(--dashboard-plot-font-size, 1rem); color:#4b5563;">
           <div style="display:flex; justify-content:space-between; margin-bottom:0.2rem;">
             <span>{html.escape(negative_label)} (&le; {-color_limit:,.3g})</span>
             <span>0</span>
@@ -479,6 +480,53 @@ def _step_month(source_key: str, target_key: str, delta: int) -> None:
     new_month = MONTH_ORDER[new_index]
     st.session_state[source_key] = new_month
     st.session_state[target_key] = new_month
+
+
+def _render_month_slider(
+    label: str,
+    source_key: str,
+    target_key: str,
+) -> str:
+    """Render a synchronized month slider and its label on one line."""
+    previous_month, month_slider, next_month, slider_label = st.columns(
+        [1, 5, 1, 3],
+        gap="small",
+        vertical_alignment="center",
+    )
+    with previous_month:
+        st.button(
+            "←",
+            key=f"{source_key}_previous",
+            help="Previous month",
+            on_click=_step_month,
+            args=(source_key, target_key, -1),
+            width="stretch",
+        )
+    with month_slider:
+        selected_month = st.select_slider(
+            label,
+            options=MONTH_ORDER,
+            format_func=_month_slider_label,
+            key=source_key,
+            label_visibility="collapsed",
+            on_change=_sync_session_value,
+            args=(source_key, target_key),
+        )
+    with next_month:
+        st.button(
+            "→",
+            key=f"{source_key}_next",
+            help="Next month",
+            on_click=_step_month,
+            args=(source_key, target_key, 1),
+            width="stretch",
+        )
+    with slider_label:
+        st.markdown(
+            f'<span style="white-space:nowrap;font-weight:600">{html.escape(label)}</span>',
+            unsafe_allow_html=True,
+        )
+    return selected_month
 
 
 def _render_deck_chart(
@@ -644,7 +692,7 @@ def _render_deck_chart(
     control_script = control_script.replace("__VIEW_CONTEXT__", json.dumps(view_context))
     deck_html = deck_html.replace("</body>", f"{controls}</body>")
     deck_html = deck_html.replace("</html>", f"{control_script}</html>")
-    components.html(deck_html, height=height, scrolling=False)
+    st.iframe(deck_html, height=height)
 
 
 def _build_map(
@@ -972,7 +1020,7 @@ def render_el_nino_event_module(
     )
     st.session_state.setdefault("el_nino_month", MONTH_ORDER[0])
     st.session_state.setdefault("weighted_month", st.session_state["el_nino_month"])
-    c1, c2, c3 = st.columns([1.25, 1, 1.25])
+    c1, c2, c3 = st.columns([1.1, 1.65, 1.25])
     with c1:
         product_id = st.selectbox(
             "Variable",
@@ -981,36 +1029,11 @@ def render_el_nino_event_module(
             key="el_nino_product",
         )
     with c2:
-        st.markdown("Target month")
-        previous_month, month_slider, next_month = st.columns([1, 5, 1], gap="small")
-        with previous_month:
-            st.button(
-                "←",
-                key="el_nino_month_previous",
-                help="Previous month",
-                on_click=_step_month,
-                args=("el_nino_month", "weighted_month", -1),
-                width="stretch",
-            )
-        with month_slider:
-            selected_month = st.select_slider(
-                "Target month",
-                options=MONTH_ORDER,
-                format_func=_month_slider_label,
-                key="el_nino_month",
-                label_visibility="collapsed",
-                on_change=_sync_session_value,
-                args=("el_nino_month", "weighted_month"),
-            )
-        with next_month:
-            st.button(
-                "→",
-                key="el_nino_month_next",
-                help="Next month",
-                on_click=_step_month,
-                args=("el_nino_month", "weighted_month", 1),
-                width="stretch",
-            )
+        selected_month = _render_month_slider(
+            "Target month",
+            "el_nino_month",
+            "weighted_month",
+        )
     with c3:
         field_focus_iso3 = st.selectbox(
             "Map focus",
@@ -1068,7 +1091,7 @@ def render_el_nino_event_module(
         )
 
     st.subheader("Weighted Climate Exposure")
-    w1, w2, w3, w4 = st.columns([1, 1, 1, 1.25])
+    w1, w2, w3, w4 = st.columns([1, 1, 1.65, 1.25])
     with w1:
         climate_id = st.selectbox(
             "Climate variable",
@@ -1083,36 +1106,11 @@ def render_el_nino_event_module(
             key="weighted_weight",
         )
     with w3:
-        st.markdown("Weighted field month")
-        previous_month, month_slider, next_month = st.columns([1, 5, 1], gap="small")
-        with previous_month:
-            st.button(
-                "←",
-                key="weighted_month_previous",
-                help="Previous month",
-                on_click=_step_month,
-                args=("weighted_month", "el_nino_month", -1),
-                width="stretch",
-            )
-        with month_slider:
-            weighted_month = st.select_slider(
-                "Weighted field month",
-                options=MONTH_ORDER,
-                format_func=_month_slider_label,
-                key="weighted_month",
-                label_visibility="collapsed",
-                on_change=_sync_session_value,
-                args=("weighted_month", "el_nino_month"),
-            )
-        with next_month:
-            st.button(
-                "→",
-                key="weighted_month_next",
-                help="Next month",
-                on_click=_step_month,
-                args=("weighted_month", "el_nino_month", 1),
-                width="stretch",
-            )
+        weighted_month = _render_month_slider(
+            "Weighted field month",
+            "weighted_month",
+            "el_nino_month",
+        )
     with w4:
         weighted_focus_iso3 = st.selectbox(
             "Map focus",
@@ -1217,19 +1215,20 @@ def render_el_nino_event_module(
         monthly_enso=monthly_enso,
     )
     if chart is not None:
-        st.plotly_chart(chart, width="stretch")
+        render_plotly_chart(chart, width="stretch")
 
     latest = ts[ts["target_month"].eq(_month_timestamp(weighted_month))].copy()
     latest["Country"] = latest["iso_a3"].map(country_label_func)
     latest = latest.sort_values("value", ascending=False)
-    st.dataframe(
-        latest[["Country", "iso_a3", "value", "cells"]],
-        column_config={
-            "Country": st.column_config.TextColumn("Country"),
-            "iso_a3": st.column_config.TextColumn("ISO3"),
-            "value": st.column_config.NumberColumn("Country weighted mean", format="%.3f"),
-            "cells": st.column_config.NumberColumn("Mask cells"),
-        },
-        hide_index=True,
-        width="stretch",
+    latest_table = latest[["Country", "iso_a3", "value", "cells"]].rename(
+        columns={
+            "iso_a3": "ISO3",
+            "value": "Country weighted mean",
+            "cells": "Mask cells",
+        }
     )
+    latest_table["Country weighted mean"] = latest_table["Country weighted mean"].map(
+        lambda value: f"{value:.3f}"
+    )
+    latest_table["Mask cells"] = latest_table["Mask cells"].astype("Int64")
+    st.table(latest_table.set_index("Country"))

@@ -28,7 +28,7 @@ cdsapi>=0.7.7
 xarray
 geopandas
 regionmask
-streamlit
+streamlit==1.63.0
 pydeck
 plotly
 country-converter
