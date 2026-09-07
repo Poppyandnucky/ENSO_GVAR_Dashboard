@@ -33,3 +33,4 @@ pydeck
 plotly
 country-converter
 torch>=2.0
+streamlit==1.63.0
