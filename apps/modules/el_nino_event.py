@@ -12,6 +12,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import pydeck as pdk
 import streamlit as st
+import streamlit.components.v1 as components
 
 from apps.modules.plot_style import render_plotly_chart
 
@@ -692,7 +693,7 @@ def _render_deck_chart(
     control_script = control_script.replace("__VIEW_CONTEXT__", json.dumps(view_context))
     deck_html = deck_html.replace("</body>", f"{controls}</body>")
     deck_html = deck_html.replace("</html>", f"{control_script}</html>")
-    st.iframe(deck_html, height=height)
+    components.html(deck_html, height=height)
 
 
 def _build_map(
