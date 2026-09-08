@@ -16,7 +16,7 @@ import streamlit as st
 from apps.modules.plot_style import render_plotly_chart
 
 
-MONTH_ORDER = ["6", "7", "8", "9", "10", "11", "12", "1", "2", "3", "4"]
+MONTH_ORDER = ["8", "9", "10", "11", "12", "1", "2", "3", "4"]
 MONTH_LABELS = {
     "6": "2026-06",
     "7": "2026-07",
@@ -68,7 +68,7 @@ PRODUCTS = {
 }
 
 CLIMATE_PRODUCTS = ["Heat", "Moisture"]
-WEIGHT_PRODUCTS = ["Population", "H_Maize", "H_Rice", "H_Soya", "H_Wheat"]
+WEIGHT_PRODUCTS = ["H_Maize", "H_Rice", "H_Soya", "H_Wheat", "Population"]
 MONTHLY_ENSO_CANDIDATES = [
     "models/output/Geo_Lat/monthly_enso.csv",
     "models/output/monthly_enso.csv",
@@ -973,7 +973,7 @@ def _country_timeseries_chart(
         title=f"{title}: {country_label_func(selected_country)}",
         height=340,
         margin=dict(l=20, r=50, t=55, b=45),
-        xaxis_title="Target month",
+        # xaxis_title="Target month",
         yaxis=dict(title="Country weighted mean"),
         yaxis2=dict(title="ENSO", overlaying="y", side="right", showgrid=False),
         legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="left", x=0),
@@ -1030,7 +1030,7 @@ def render_el_nino_event_module(
         )
     with c2:
         selected_month = _render_month_slider(
-            "Target month",
+            "Month",
             "el_nino_month",
             "weighted_month",
         )
@@ -1107,7 +1107,7 @@ def render_el_nino_event_module(
         )
     with w3:
         weighted_month = _render_month_slider(
-            "Weighted field month",
+            "Month",
             "weighted_month",
             "el_nino_month",
         )

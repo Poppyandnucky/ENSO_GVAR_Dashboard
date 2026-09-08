@@ -337,6 +337,7 @@ def install_analysis_scope_tab_observer() -> None:
             "Dashboard Guide",
             "Feedback",
           ]);
+          let previousActiveTabText = null;
 
           function findClimateTab() {
             return Array.from(
@@ -351,7 +352,8 @@ def install_analysis_scope_tab_observer() -> None:
             const scopeWrapper = scopePanel.closest('[data-testid="stLayoutWrapper"]') || scopePanel;
             const primaryTabList = climateTab.closest('[role="tablist"]');
             const activeTab = primaryTabList?.querySelector('[role="tab"][aria-selected="true"]');
-            const scopeShouldHide = scopeHiddenTabs.has(activeTab?.textContent.trim());
+            const activeTabText = activeTab?.textContent.trim();
+            const scopeShouldHide = scopeHiddenTabs.has(activeTabText);
             if (scopeShouldHide) {
               scopeWrapper.style.setProperty('display', 'none', 'important');
             } else {
@@ -367,7 +369,25 @@ def install_analysis_scope_tab_observer() -> None:
                 `${scopeHeight}px`,
               );
             }
-            if (activeTab?.textContent.trim() === 'Structural Break Analysis') {
+            if (
+              activeTabText === 'Structural Break Analysis' &&
+              previousActiveTabText !== 'Structural Break Analysis'
+            ) {
+              window.setTimeout(() => {
+                const mapFrame = parentDocument.querySelector(
+                  '.st-key-structural_break_map_frame iframe'
+                );
+                const mapHtml = mapFrame?.getAttribute('srcdoc');
+                if (mapFrame && mapHtml) {
+                  mapFrame.removeAttribute('srcdoc');
+                  window.requestAnimationFrame(() => {
+                    mapFrame.setAttribute('srcdoc', mapHtml);
+                  });
+                }
+              }, 75);
+            }
+            previousActiveTabText = activeTabText;
+            if (activeTabText === 'Structural Break Analysis') {
               const notifyMapIframes = () => {
                 parentDocument.querySelectorAll('iframe').forEach((iframe) => {
                   iframe.contentWindow?.postMessage(
@@ -3902,7 +3922,8 @@ with tab_structural_break:
                     map_path.read_text(encoding="utf-8"),
                     plot_font_size(),
                 )
-                st.iframe(html_text, height=875)
+                with st.container(key="structural_break_map_frame"):
+                    st.iframe(html_text, height=875)
             except Exception as e:
                 st.error(f"Failed to load map HTML: {e}")
 
