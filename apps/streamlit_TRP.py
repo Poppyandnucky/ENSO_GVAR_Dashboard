@@ -10,6 +10,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 import streamlit as st
+import streamlit.components.v1 as components
 import geopandas as gpd
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -50,7 +51,26 @@ FORECAST_PICKLE_CANDIDATES = [
     _ROOT / "Dash_Input" / "gvar_forecast_results.pkl",
     _ROOT / "analysis" / "Dash_Input" / "gvar_forecast_results.pkl",
 ]
+CORE_COUNTRIES = [
+    "BRA",
+    "MEX",
+    "CHL",
+    "PHL",
+    "IND",
+    "IDN",
+    "PER",
+    "THA",
+    "COL",
+    "KEN",
+    "EGY",
+    "ZAF",
+]
+CORE_COUNTRY_FORECAST_DIR = _ROOT / "Dash_Input" / "country_forecasts"
 SCENARIO_OUTPUT_ROOT = _ROOT / "analysis" / "Dash_Output"
+ENSO_CLIMATE_TOTAL_CANDIDATES = [
+    _ROOT / "analysis" / "validation" / "ENSO_climate_total.csv",
+    _ROOT / "analysis" / "ENSO_climate_total.csv",
+]
 
 DASHBOARD_COUNTRIES = [
     "BRA",  # Brazil
@@ -325,7 +345,7 @@ def reset_dashboard_font_size(default_size: int) -> None:
 
 def install_analysis_scope_tab_observer() -> None:
     """Hide global controls on tabs that do not use country/response selections."""
-    st.iframe(
+    components.html(
         """
         <!doctype html>
         <html><body><script>
@@ -634,6 +654,38 @@ def load_wb_top4():
     return df
 
 
+@st.cache_data
+def load_enso_climate_total() -> pd.DataFrame:
+    for path in ENSO_CLIMATE_TOTAL_CANDIDATES:
+        if not path.exists():
+            continue
+        df = pd.read_csv(path, low_memory=False)
+        if "date" not in df.columns or "RONI" not in df.columns:
+            continue
+        out = df.copy()
+        out["quarter"] = pd.to_datetime(out["date"], errors="coerce").dt.to_period("Q").dt.to_timestamp()
+        out["RONI"] = pd.to_numeric(out["RONI"], errors="coerce")
+        for col in ("RONI_lower_2.5%", "RONI_upper_97.5%"):
+            out[col] = pd.to_numeric(out[col], errors="coerce") if col in out.columns else np.nan
+        out["source"] = out["source"].astype(str) if "source" in out.columns else ""
+        keep = out.dropna(subset=["quarter", "RONI"]).sort_values("date")
+        if keep.empty:
+            return pd.DataFrame()
+        quarterly = (
+            keep.groupby("quarter", as_index=False)[
+                ["RONI", "RONI_lower_2.5%", "RONI_upper_97.5%"]
+            ]
+            .mean()
+        )
+        source = (
+            keep.groupby("quarter")["source"]
+            .apply(lambda s: "forecast_50pct" if s.astype(str).str.startswith("forecast").any() else s.astype(str).iloc[-1])
+            .reset_index()
+        )
+        return quarterly.merge(source, on="quarter", how="left").sort_values("quarter")
+    return pd.DataFrame()
+
+
 def _extract_field(raw_text, field):
     if pd.isna(raw_text):
         return None
@@ -717,15 +769,45 @@ def load_pipeline_break_scores():
 
 
 def forecast_pickle_state():
-    return tuple(
+    large_state = tuple(
         (str(p), p.stat().st_mtime_ns, p.stat().st_size)
         for p in FORECAST_PICKLE_CANDIDATES
         if p.exists()
     )
+    country_state = tuple(
+        (str(p), p.stat().st_mtime_ns, p.stat().st_size)
+        for p in (CORE_COUNTRY_FORECAST_DIR / f"{country}.pkl" for country in CORE_COUNTRIES)
+        if p.exists()
+    )
+    return large_state + country_state
+
+
+def _load_core_country_forecasts() -> tuple[dict[str, dict], dict[str, str]]:
+    bundles = {}
+    paths = {}
+    for country in CORE_COUNTRIES:
+        path = CORE_COUNTRY_FORECAST_DIR / f"{country}.pkl"
+        if not path.exists():
+            continue
+        try:
+            with open(path, "rb") as f:
+                bundle = pickle.load(f)
+            if (
+                isinstance(bundle, dict)
+                and bundle.get("format") == "core_country_forecast_v1"
+                and bundle.get("country") == country
+                and isinstance(bundle.get("forecasts"), dict)
+            ):
+                bundles[country] = bundle
+                paths[country] = str(path)
+        except Exception:
+            continue
+    return bundles, paths
 
 
 @st.cache_data
 def load_forecast_bundle(pickle_state):
+    country_bundles, country_paths = _load_core_country_forecasts()
     for p in FORECAST_PICKLE_CANDIDATES:
         if not p.exists():
             continue
@@ -733,10 +815,15 @@ def load_forecast_bundle(pickle_state):
             with open(p, "rb") as f:
                 bundle = pickle.load(f)
             if isinstance(bundle, dict):
-                return {"path": str(p), "bundle": bundle}
+                return {
+                    "path": str(p),
+                    "bundle": bundle,
+                    "country_bundles": country_bundles,
+                    "country_paths": country_paths,
+                }
         except Exception:
             continue
-    return {"path": None, "bundle": {}}
+    return {"path": None, "bundle": {}, "country_bundles": country_bundles, "country_paths": country_paths}
 
 
 def _scenario_from_slider(value):
@@ -779,14 +866,47 @@ def _forecast_scenarios(bundle):
     return {}
 
 
+def _forecast_scenarios_for_country(bundle, country_bundles, country):
+    scenarios = _forecast_scenarios(bundle)
+    if country not in CORE_COUNTRIES:
+        return scenarios
+    country_bundle = (country_bundles or {}).get(country)
+    if not isinstance(country_bundle, dict):
+        return scenarios
+    forecasts = country_bundle.get("forecasts")
+    if not isinstance(forecasts, dict):
+        return scenarios
+
+    source_active = country_bundle.get("source_active_scenario")
+    out = {}
+    for scenario_name, scenario_bundle in scenarios.items():
+        if not isinstance(scenario_bundle, dict):
+            out[scenario_name] = scenario_bundle
+            continue
+        country_pack = forecasts.get(scenario_name)
+        if country_pack is None and len(scenarios) == 1:
+            country_pack = forecasts.get(source_active) or forecasts.get("approved")
+        if isinstance(country_pack, dict):
+            merged = dict(scenario_bundle)
+            per_country = dict(merged.get("per_country") or {})
+            per_country[country] = country_pack
+            merged["per_country"] = per_country
+            out[scenario_name] = merged
+        else:
+            out[scenario_name] = scenario_bundle
+    return out
+
+
 CLIMATE_TOGGLE_OPTIONS = {
     "ENSO": "ENSO",
     "IOD": "IOD",
     "HeatDry": "Crop-weighted heat/dryness index",
     "HeatDryF": "Crop-weighted heat/dryness forecast index",
+    "HeatDryYoY": "Crop-weighted heat/dryness YoY index",
     "OIL_YoY": "Oil price YoY",
 }
 _CLIMATE_TOGGLE_ORDER = {v: i for i, v in enumerate(CLIMATE_TOGGLE_OPTIONS)}
+HEATDRY_SCENARIO_END_QUARTER = pd.Period("2027Q1", freq="Q").to_timestamp()
 
 # Match CLIMATE_VARIANT_COMBOS in gvar_kf_forecast.py.
 CLIMATE_VARIANT_CHOICES = {
@@ -842,10 +962,10 @@ def _select_climate_variant_scenarios(bundle, climate_vars_selected):
     return _forecast_scenarios(bundle)
 
 
-def _approved_country_pack(bundle, country):
+def _approved_country_pack(bundle, country, country_bundles=None):
     if not isinstance(bundle, dict) or bundle.get("format") != "approved_country_forecasts_v1":
         return None
-    for scenario_bundle in _forecast_scenarios(bundle).values():
+    for scenario_bundle in _forecast_scenarios_for_country(bundle, country_bundles, country).values():
         d = scenario_bundle.get("per_country", {}).get(country)
         if isinstance(d, dict):
             return d
@@ -1025,11 +1145,11 @@ def build_forecast_plot_df(
     history_start=FORECAST_HISTORY_START,
     include_observed_overlap=False,
     coeff_method="last",
+    country_bundles=None,
 ):
-    scenarios = _forecast_scenarios(forecast_bundle)
     frames = [
         _forecast_country_frame(
-            scenarios,
+            _forecast_scenarios_for_country(forecast_bundle, country_bundles, c),
             panel_df,
             c,
             response_var,
@@ -1043,6 +1163,16 @@ def build_forecast_plot_df(
     if not frames:
         return pd.DataFrame()
     return pd.concat(frames, ignore_index=True)
+
+
+def cap_heatdry_scenario_horizon(plot_df: pd.DataFrame, heat_var_active: str | None) -> pd.DataFrame:
+    """For HeatDry specifications, show scenario impacts only through 2027Q1."""
+    if not heat_var_active or plot_df.empty or "quarter" not in plot_df.columns:
+        return plot_df
+    out = plot_df.copy()
+    quarter = pd.to_datetime(out["quarter"], errors="coerce").dt.to_period("Q").dt.to_timestamp()
+    is_history = out.get("period_type", pd.Series(index=out.index, dtype=object)).eq("Actual history")
+    return out.loc[is_history | quarter.le(HEATDRY_SCENARIO_END_QUARTER)].copy()
 
 
 def summarize_forecast_ranges(plot_df):
@@ -1213,9 +1343,9 @@ def plot_selected_country_forecast(plot_df, response_var, country_label, counter
                 x=hist["quarter"],
                 y=hist["value"],
                 mode="lines",
-                name="Actual history",
+                name="Observed history",
                 line=dict(color=color, width=2),
-                hovertemplate=f"Actual<br>%{{x|%Y-Q%q}}<br>{response_var}: %{{y:.2f}}<extra></extra>",
+                hovertemplate=f"Observed history<br>%{{x|%Y-Q%q}}<br>{response_var}: %{{y:.2f}}<extra></extra>",
             )
         )
 
@@ -1299,28 +1429,6 @@ def plot_selected_country_forecast(plot_df, response_var, country_label, counter
                 )
             )
 
-        if "actual_value" in fc.columns:
-            actual = (
-                fc.pivot_table(index="quarter", columns="scenario", values="actual_value", aggfunc="mean")
-                .sort_index()
-                .mean(axis=1)
-                .dropna()
-            )
-            if not actual.empty:
-                fig.add_trace(
-                    go.Scatter(
-                        x=actual.index,
-                        y=actual,
-                        mode="markers",
-                        name="Actual observed (comparison)",
-                        marker=dict(color="#2ca02c", size=11, symbol="diamond", line=dict(color="white", width=1)),
-                        hovertemplate=(
-                            "Actual observed"
-                            f"<br>%{{x|%Y-Q%q}}<br>{response_var}: %{{y:.2f}}<extra></extra>"
-                        ),
-                    )
-                )
-
     fig.update_layout(
         title=title,
         xaxis_title="Quarter",
@@ -1333,124 +1441,104 @@ def plot_selected_country_forecast(plot_df, response_var, country_label, counter
 
 
 def plot_enso_forecast_online(forecast_bundle, panel_df, plot_start=pd.Timestamp("2014-01-01")):
-    scenarios = _forecast_scenarios(forecast_bundle)
-    if not scenarios:
-        return None
-
-    hist = panel_df[["quarter", "ENSO"]].copy()
-    hist["quarter"] = pd.to_datetime(hist["quarter"], errors="coerce").dt.to_period("Q").dt.to_timestamp()
-    hist["ENSO"] = pd.to_numeric(hist["ENSO"], errors="coerce")
-    hist = (
-        hist.dropna(subset=["quarter", "ENSO"])
-        .groupby("quarter", as_index=False)["ENSO"]
-        .first()
-        .sort_values("quarter")
-    )
-    hist = hist[hist["quarter"] >= plot_start].copy()
-
-    scen_frames = []
-    for scenario_name, scenario_bundle in scenarios.items():
-        exo = scenario_bundle.get("exo_forecast")
-        if not isinstance(exo, pd.DataFrame) or "target_quarter" not in exo or "ENSO" not in exo:
-            per_country = scenario_bundle.get("per_country", {}) if isinstance(scenario_bundle, dict) else {}
-            exo_items = [
-                (f"{scenario_name}:{c}", d.get("exo_forecast"))
-                for c, d in per_country.items()
-                if isinstance(d, dict)
-            ]
-        else:
-            exo_items = [(scenario_name, exo)]
-        for label, exo_item in exo_items:
-            if not isinstance(exo_item, pd.DataFrame) or "target_quarter" not in exo_item or "ENSO" not in exo_item:
-                continue
-            cols = ["target_quarter", "ENSO"]
-            if "ENSO_source" in exo_item.columns:
-                cols.append("ENSO_source")
-            tmp = exo_item[cols].copy()
-            if "ENSO_source" not in tmp.columns:
-                tmp["ENSO_source"] = "forecast"
-            tmp["quarter"] = pd.to_datetime(tmp["target_quarter"], errors="coerce").dt.to_period("Q").dt.to_timestamp()
-            tmp["ENSO"] = pd.to_numeric(tmp["ENSO"], errors="coerce")
-            tmp["scenario"] = label
-            scen_frames.append(tmp.dropna(subset=["quarter", "ENSO"]))
-    if not scen_frames:
-        return None
-
-    exo_df = pd.concat(scen_frames, ignore_index=True)
-    fc = exo_df[exo_df["ENSO_source"].astype(str).eq("forecast")].copy()
-    if fc.empty:
-        fc = exo_df.copy()
-    piv = fc.pivot_table(index="quarter", columns="scenario", values="ENSO", aggfunc="mean").sort_index()
-    if piv.empty:
-        return None
-
-    mean = piv["mean"] if "mean" in piv else piv.mean(axis=1)
-    if {"min", "max"}.issubset(set(piv.columns)):
-        lower = piv["min"]
-        upper = piv["max"]
-    else:
-        def _scenario_series(values):
-            s = pd.Series(
-                {
-                    pd.Period(q, freq="Q").to_timestamp(): float(v)
-                    for q, v in values.items()
-                }
-            ).sort_index()
-            return s.reindex(mean.index)
-
-        lower = _scenario_series(ENSO_FORECAST_MIN).combine_first(piv.min(axis=1))
-        upper = _scenario_series(ENSO_FORECAST_MAX).combine_first(piv.max(axis=1))
-
     fig = go.Figure()
-    if not hist.empty:
-        fig.add_trace(
-            go.Scatter(
-                x=hist["quarter"],
-                y=hist["ENSO"],
-                mode="lines",
-                name="Historical ENSO",
-                line=dict(color="#1f77b4", width=2),
-                hovertemplate="Historical ENSO<br>%{x|%Y-Q%q}<br>%{y:.2f}<extra></extra>",
-            )
-        )
-        if mean.index[0] > hist["quarter"].iloc[-1]:
+    enso_source = load_enso_climate_total()
+    if not enso_source.empty:
+        enso = enso_source[enso_source["quarter"] >= plot_start].copy()
+        enso = enso.dropna(subset=["RONI"]).sort_values("quarter")
+        if enso.empty:
+            return None
+        band = enso.dropna(subset=["RONI_lower_2.5%", "RONI_upper_97.5%"])
+        if not band.empty:
             fig.add_trace(
                 go.Scatter(
-                    x=[hist["quarter"].iloc[-1], mean.index[0]],
-                    y=[hist["ENSO"].iloc[-1], mean.iloc[0]],
-                    mode="lines",
-                    line=dict(color="#888888", width=1.5, dash="dot"),
+                    x=list(band["quarter"]) + list(band["quarter"].iloc[::-1]),
+                    y=list(band["RONI_upper_97.5%"]) + list(band["RONI_lower_2.5%"].iloc[::-1]),
+                    fill="toself",
+                    fillcolor="rgba(31, 119, 180, 0.16)",
+                    line=dict(color="rgba(255,255,255,0)"),
                     hoverinfo="skip",
-                    showlegend=False,
+                    name="ENSO 95% interval",
+                    showlegend=True,
                 )
             )
+        fig.add_trace(
+            go.Scatter(
+                x=enso["quarter"],
+                y=enso["RONI"],
+                mode="lines",
+                name="ENSO path",
+                line=dict(color="#1f77b4", width=2),
+                hovertemplate="ENSO path<br>%{x|%Y-Q%q}<br>RONI: %{y:.2f}<extra></extra>",
+            )
+        )
+        forecast_rows = enso[enso["source"].str.startswith("forecast", na=False)]
+        if not forecast_rows.empty:
+            fig.add_vline(x=forecast_rows["quarter"].iloc[0], line_dash="dash", line_color="#888888", opacity=0.7)
+        title = "ENSO/RONI path and forecast interval"
+    else:
+        scenarios = _forecast_scenarios(forecast_bundle)
+        if not scenarios:
+            return None
 
-    fig.add_trace(
-        go.Scatter(
-            x=list(mean.index) + list(mean.index[::-1]),
-            y=list(upper) + list(lower[::-1]),
-            fill="toself",
-            fillcolor="rgba(255, 127, 14, 0.22)",
-            line=dict(color="rgba(255,255,255,0)"),
-            hoverinfo="skip",
-            name="Low-high scenario range",
-            showlegend=True,
+        scen_frames = []
+        for scenario_name, scenario_bundle in scenarios.items():
+            exo = scenario_bundle.get("exo_forecast")
+            if not isinstance(exo, pd.DataFrame) or "target_quarter" not in exo or "ENSO" not in exo:
+                per_country = scenario_bundle.get("per_country", {}) if isinstance(scenario_bundle, dict) else {}
+                exo_items = [
+                    (f"{scenario_name}:{c}", d.get("exo_forecast"))
+                    for c, d in per_country.items()
+                    if isinstance(d, dict)
+                ]
+            else:
+                exo_items = [(scenario_name, exo)]
+            for label, exo_item in exo_items:
+                if not isinstance(exo_item, pd.DataFrame) or "target_quarter" not in exo_item or "ENSO" not in exo_item:
+                    continue
+                tmp = exo_item[["target_quarter", "ENSO"]].copy()
+                tmp["quarter"] = pd.to_datetime(tmp["target_quarter"], errors="coerce").dt.to_period("Q").dt.to_timestamp()
+                tmp["ENSO"] = pd.to_numeric(tmp["ENSO"], errors="coerce")
+                tmp["scenario"] = label
+                scen_frames.append(tmp.dropna(subset=["quarter", "ENSO"]))
+        if not scen_frames:
+            return None
+        fc = pd.concat(scen_frames, ignore_index=True)
+        piv = fc.pivot_table(index="quarter", columns="scenario", values="ENSO", aggfunc="mean").sort_index()
+        if piv.empty:
+            return None
+        mean = piv["mean"] if "mean" in piv else piv.mean(axis=1)
+        lower = piv["min"] if "min" in piv else piv.min(axis=1)
+        upper = piv["max"] if "max" in piv else piv.max(axis=1)
+        fig.add_trace(
+            go.Scatter(
+                x=list(mean.index) + list(mean.index[::-1]),
+                y=list(upper) + list(lower[::-1]),
+                fill="toself",
+                fillcolor="rgba(31, 119, 180, 0.16)",
+                line=dict(color="rgba(255,255,255,0)"),
+                hoverinfo="skip",
+                name="ENSO range",
+                showlegend=True,
+            )
         )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=mean.index,
-            y=mean,
-            mode="lines+markers",
-            name="Mean forecast",
-            line=dict(color="#ff7f0e", width=2.5),
-            marker=dict(color="#ff7f0e"),
-            hovertemplate="Mean forecast<br>%{x|%Y-Q%q}<br>ENSO: %{y:.2f}<extra></extra>",
+        fig.add_trace(
+            go.Scatter(
+                x=mean.index,
+                y=mean,
+                mode="lines+markers",
+                name="ENSO path",
+                line=dict(color="#1f77b4", width=2),
+                marker=dict(color="#1f77b4"),
+                hovertemplate="ENSO path<br>%{x|%Y-Q%q}<br>ENSO: %{y:.2f}<extra></extra>",
+            )
         )
-    )
-    fig.add_vline(x=mean.index[0], line_dash="dash", line_color="#888888", opacity=0.7)
+        if len(mean.index):
+            fig.add_vline(x=mean.index[0], line_dash="dash", line_color="#888888", opacity=0.7)
+        title = "ENSO forecast path and range"
+
     fig.update_layout(
-        title="ENSO history and forecast (low-high scenario range)",
+        title=title,
         xaxis_title="Quarter",
         yaxis_title="ENSO",
         legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="left", x=0),
@@ -1708,7 +1796,7 @@ def render_synchronized_impact_maps(map_figures):
         },
         post_script=sync_script,
     )
-    st.iframe(chart_html, height=1000)
+    components.html(chart_html, height=1000)
     return True
 
 
@@ -2605,7 +2693,11 @@ with tab_scenario:
         st_subheader("Core forecast")
         st.info("No forecast bundle is available for the online ENSO forecast chart.")
     else:
-        approved_pack = _approved_country_pack(forecast_pack["bundle"], country)
+        approved_pack = _approved_country_pack(
+            forecast_pack["bundle"],
+            country,
+            forecast_pack.get("country_bundles"),
+        )
         if approved_pack is not None:
             climate_vars_selected = list(approved_pack.get("EXO_use", []))
             st.caption(
@@ -2680,7 +2772,9 @@ with tab_scenario:
             history_start=None,
             include_observed_overlap=show_actual_overlap,
             coeff_method=coeff_method,
+            country_bundles=forecast_pack.get("country_bundles"),
         )
+        selected_df = cap_heatdry_scenario_horizon(selected_df, heat_var_active)
         approved_setting_values = selected_df.loc[
             ~selected_df["period_type"].eq("Actual history"), "setting"
         ].dropna().astype(str).unique() if not selected_df.empty and "setting" in selected_df.columns else []
@@ -2727,12 +2821,6 @@ with tab_scenario:
                     "values set to 0, so the gap from the forecasted ENSO scenario indicates the "
                     "model-implied macroeconomic impact of ENSO."
                 )
-                if show_actual_overlap:
-                    st.caption(
-                        "Green diamonds: the real observed value for quarters now shown as "
-                        "forecast/nowcast, so you can compare the model's estimate against what "
-                        "actually happened once that data became available."
-                    )
         else:
             st.info("ENSO is not part of this model variant, so no ENSO counterfactual is shown.")
 
@@ -2911,7 +2999,9 @@ with tab_scenario:
             panel,
             scenario_countries,
             response_var,
+            country_bundles=forecast_pack.get("country_bundles"),
         )
+        comparison_df = cap_heatdry_scenario_horizon(comparison_df, heat_var_active)
         fig_core = plot_core_forecast(comparison_df, response_var)
         if fig_core is None:
             st.info("Forecast pickle does not contain data for the selected comparison countries/response.")
@@ -2976,7 +3066,9 @@ with tab_scenario:
                     map_countries,
                     metric,
                     history_start=None,
+                    country_bundles=forecast_pack.get("country_bundles"),
                 )
+                metric_df = cap_heatdry_scenario_horizon(metric_df, heat_var_active)
                 quarterly_summary, cumulative_summary = summarize_forecast_ranges(metric_df)
                 scenario_quarters = quarterly_summary[
                     quarterly_summary["period_type"].eq("Scenario forecast")
@@ -3902,7 +3994,7 @@ with tab_structural_break:
                     map_path.read_text(encoding="utf-8"),
                     plot_font_size(),
                 )
-                st.iframe(html_text, height=875)
+                components.html(html_text, height=875)
             except Exception as e:
                 st.error(f"Failed to load map HTML: {e}")
 
@@ -4039,7 +4131,7 @@ with tab_feedback:
         "Use this form to report bugs, confusing results, interpretation issues, "
         "or suggestions for improving the dashboard."
     )
-    st.iframe(
+    components.iframe(
         "https://forms.microsoft.com/Pages/ResponsePage.aspx?id=OPSkn-axO0eAP4b4rt8N7AeTQAt0SklBhYoUFkbp7hdUMzZDUUhITEYwNDE5M0lNMTZSMUhHUjBYRi4u",
         height=775,
     )
