@@ -641,8 +641,21 @@ def _forecast_from_result(prep: PreparedRun, res: dict) -> pd.DataFrame:
 
     valid_idx = np.where(np.asarray(pack["valid_mask"], bool))[0]
     last_t = int(valid_idx[-1])
-    theta = np.asarray(pack["theta_filt"][last_t]).reshape(-1, 1)
-    p = np.asarray(pack["P_filt"][last_t])
+    theta_est_final = np.asarray(res.get("theta_est", []), dtype=float)
+    p_hist_final = np.asarray(res.get("P_hist", []), dtype=float)
+    if (
+        theta_est_final.ndim == 2
+        and p_hist_final.ndim == 3
+        and last_t < len(theta_est_final)
+        and last_t < len(p_hist_final)
+        and np.isfinite(theta_est_final[last_t]).all()
+        and np.isfinite(p_hist_final[last_t]).all()
+    ):
+        theta = theta_est_final[last_t].reshape(-1, 1)
+        p = p_hist_final[last_t]
+    else:
+        theta = np.asarray(pack["theta_filt"][last_t]).reshape(-1, 1)
+        p = np.asarray(pack["P_filt"][last_t])
     z_fc = np.zeros((len(exo_fc), len(prep.exo_use)))
     for j, col in enumerate(prep.exo_use):
         raw = pd.to_numeric(exo_fc[col], errors="coerce").to_numpy(float)
@@ -716,8 +729,21 @@ def _forecast_scenarios_from_result(prep: PreparedRun, res: dict) -> pd.DataFram
 
     valid_idx = np.where(np.asarray(pack["valid_mask"], bool))[0]
     last_t = int(valid_idx[-1])
-    theta = np.asarray(pack["theta_filt"][last_t]).reshape(-1, 1)
-    p = np.asarray(pack["P_filt"][last_t])
+    theta_est_final = np.asarray(res.get("theta_est", []), dtype=float)
+    p_hist_final = np.asarray(res.get("P_hist", []), dtype=float)
+    if (
+        theta_est_final.ndim == 2
+        and p_hist_final.ndim == 3
+        and last_t < len(theta_est_final)
+        and last_t < len(p_hist_final)
+        and np.isfinite(theta_est_final[last_t]).all()
+        and np.isfinite(p_hist_final[last_t]).all()
+    ):
+        theta = theta_est_final[last_t].reshape(-1, 1)
+        p = p_hist_final[last_t]
+    else:
+        theta = np.asarray(pack["theta_filt"][last_t]).reshape(-1, 1)
+        p = np.asarray(pack["P_filt"][last_t])
 
     z_factual = np.zeros((len(exo_fc), len(prep.exo_use)))
     for j, col in enumerate(prep.exo_use):

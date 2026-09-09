@@ -76,6 +76,22 @@ FORECAST_ENSO = FORECAST_ENSO_MEAN
 
 EXTEND_TARGETS_TO_OIL_RANGE = True
 RAGGED_EDGE_FORECAST_INIT = True
+CORE_COUNTRIES = [
+    "BRA",
+    "MEX",
+    "CHL",
+    "PHL",
+    "IND",
+    "IDN",
+    "PER",
+    "THA",
+    "COL",
+    "KEN",
+    "EGY",
+    "ZAF",
+]
+CORE_COUNTRY_FORECAST_DIR = _ROOT / "Dash_Input" / "country_forecasts"
+CORE_COUNTRY_FORECAST_BACKUP_DIR = CORE_COUNTRY_FORECAST_DIR / "backup"
 ENSO_FORECAST_OVERRIDE_QUARTERS = {
     pd.Period("2026Q3", freq="Q").to_timestamp(),
     pd.Period("2026Q4", freq="Q").to_timestamp(),
@@ -131,8 +147,8 @@ Z_CI = 1.96
 FORECAST_MC_SIMULATIONS = 500
 FORECAST_MC_SEED = 20260531
 FORECAST_MC_METHOD = "beta_q_random_walk_monte_carlo"
-FORECAST_MC_BAND_METHOD = "mean_plus_minus_one_std"
-FORECAST_MC_INTERVAL_LABEL = "+/- 1 standard deviation"
+FORECAST_MC_BAND_METHOD = "mean_plus_minus_z_std"
+FORECAST_MC_INTERVAL_LABEL = "95% interval"
 FORECAST_COEFF_METHOD_WINDOWS = {
     "last": 1,
     "avg4": 4,
@@ -731,11 +747,11 @@ def _roll_kf_forecast(
 ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray | None]:
     """Multi-step forecast; optional bands are offline beta/Q Monte Carlo.
 
-    P0, R, and z_ci are kept in the signature for backward compatibility. The
+    P0 and R are kept in the signature for backward compatibility. The
     forecast band intentionally sets P=0 and R=0, starts from the last filtered
     beta as known, and evolves beta forward with the Kalman-filter Q.
     """
-    _ = (P0, R, z_ci)
+    _ = (P0, R)
     theta = np.asarray(theta0, dtype=float).reshape(-1, 1)
     y_hat = _roll_forecast_path(
         theta=theta,
@@ -769,8 +785,8 @@ def _roll_kf_forecast(
             y_buf = [yhat_s.copy()] + y_buf[:-1]
 
     sim_sd = np.nanstd(paths, axis=0, ddof=1)
-    y_lo = y_hat - sim_sd
-    y_hi = y_hat + sim_sd
+    y_lo = y_hat - float(z_ci) * sim_sd
+    y_hi = y_hat + float(z_ci) * sim_sd
     return y_hat, y_lo, y_hi
 
 
@@ -976,8 +992,21 @@ def forecast_country_from_em(
         return None
     last_t = int(np.where(valid)[0][-1])
 
-    theta = np.asarray(pack["theta_filt"][last_t], dtype=float).reshape(-1, 1)
-    P = np.asarray(pack["P_filt"][last_t], dtype=float)
+    theta_est_final = np.asarray(res.get("theta_est", []), dtype=float)
+    p_hist_final = np.asarray(res.get("P_hist", []), dtype=float)
+    if (
+        theta_est_final.ndim == 2
+        and p_hist_final.ndim == 3
+        and last_t < len(theta_est_final)
+        and last_t < len(p_hist_final)
+        and np.isfinite(theta_est_final[last_t]).all()
+        and np.isfinite(p_hist_final[last_t]).all()
+    ):
+        theta = theta_est_final[last_t].reshape(-1, 1)
+        P = p_hist_final[last_t]
+    else:
+        theta = np.asarray(pack["theta_filt"][last_t], dtype=float).reshape(-1, 1)
+        P = np.asarray(pack["P_filt"][last_t], dtype=float)
     Q = np.asarray(res["Q"], dtype=float)
     R = np.asarray(res["R"], dtype=float)
 
@@ -1882,6 +1911,164 @@ def save_forecast_pickle(bundle: dict, path: str | Path = FORECAST_PICKLE_PATH) 
     with path.open("wb") as f:
         pickle.dump(bundle, f)
     print(f"[PICKLE] Saved: {path}")
+
+
+def _load_core_country_bundle(path: Path) -> dict:
+    with path.open("rb") as f:
+        bundle = pickle.load(f)
+    if not isinstance(bundle, dict):
+        raise ValueError(f"Invalid country pickle: {path}")
+    return bundle
+
+
+def _approved_specs_from_country_pickles(
+    source_dir: str | Path = CORE_COUNTRY_FORECAST_BACKUP_DIR,
+) -> dict[str, dict]:
+    """Read the approved Core-12 specs from existing country pickles."""
+    source_dir = Path(source_dir)
+    specs: dict[str, dict] = {}
+    for country in CORE_COUNTRIES:
+        path = source_dir / f"{country}.pkl"
+        if not path.exists():
+            continue
+        bundle = _load_core_country_bundle(path)
+        approved = (bundle.get("forecasts") or {}).get("approved", {})
+        settings = approved.get("approved_settings") if isinstance(approved, dict) else None
+        if not isinstance(settings, dict):
+            continue
+        specs[country] = dict(settings)
+    return specs
+
+
+def _apply_forecast_coeff_method(fc: dict, coeff_method: str) -> dict:
+    out = dict(fc)
+    if coeff_method != "last":
+        method_pack = fc.get("forecast_methods", {}).get(coeff_method)
+        if not isinstance(method_pack, dict):
+            raise RuntimeError(f"Forecast method {coeff_method!r} is unavailable")
+        for key in ("y_hat", "y_hat_enso0", "y_hat_iod0", "y_hat_heat0", "heat0_var", "y_lower", "y_upper"):
+            if key in method_pack:
+                out[key] = method_pack[key]
+    out["selected_coeff_method"] = coeff_method
+    return out
+
+
+def run_approved_core_country_forecasts(
+    *,
+    source_dir: str | Path = CORE_COUNTRY_FORECAST_BACKUP_DIR,
+    output_dir: str | Path = CORE_COUNTRY_FORECAST_DIR,
+    path: str | None = None,
+    countries: list[str] | None = None,
+) -> dict[str, dict]:
+    """Regenerate only the approved Core-12 country pickle entries.
+
+    The approved country specs are read from the source pickles, usually the
+    backup originals. EM fitting uses each approved EXO/update_P0/max-iteration
+    setting, and the forecast step uses ragged observed-forward initialization
+    when the current panel has partially observed quarters.
+    """
+    source_dir = Path(source_dir)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = path or gp.PATH
+    specs = _approved_specs_from_country_pickles(source_dir)
+    countries_to_run = countries or CORE_COUNTRIES
+    out: dict[str, dict] = {}
+
+    for country in countries_to_run:
+        spec = specs.get(country)
+        if not spec:
+            print(f"[SKIP] {country}: no approved spec in {source_dir}")
+            continue
+        exo_vars = list(spec.get("exo_vars") or spec.get("external_variables") or [])
+        if not exo_vars:
+            print(f"[SKIP] {country}: approved spec has no exogenous variables")
+            continue
+        max_em_iter = int(spec.get("max_em_iter", MAX_EM_ITER))
+        update_P0 = bool(spec.get("update_P0", True))
+        coeff_method = str(spec.get("coeff_method", "last"))
+
+        prep, res = gp._run_kf_em_cached(
+            PATH=path,
+            country=country,
+            COL_COUNTRY=gp.COL_COUNTRY,
+            COL_TIME=gp.COL_TIME,
+            ENDO=gp.ENDO,
+            EXO=exo_vars,
+            lags=gp.lags,
+            min_T=gp.lags + 5,
+            max_em_iter=max_em_iter,
+            exo_mode="all",
+            update_P0=update_P0,
+        )
+        if prep is None or res is None:
+            print(f"[SKIP] {country}: no EM result")
+            continue
+
+        exo_fc = build_forecast_exo_df_multi(
+            exo_vars,
+            country,
+            enso_map=FORECAST_ENSO_MEAN,
+            target_quarters=FORECAST_TARGET_QUARTERS,
+        )
+        fc = forecast_country_from_em(
+            prep,
+            res,
+            exo_fc,
+            country=country,
+            scenario_name="approved",
+        )
+        if fc is None:
+            print(f"[SKIP] {country}: forecast failed")
+            continue
+
+        fc = _apply_forecast_coeff_method(fc, coeff_method)
+        fc["scenario_name"] = "approved"
+        fc["enso_scenario"] = "approved" if "ENSO" in exo_vars else None
+        fc["climate_variant"] = climate_variant_key(exo_vars)
+        fc["approved_country_spec"] = True
+        fc["approved_settings"] = {
+            "country": country,
+            "exo_vars": exo_vars,
+            "max_em_iter": max_em_iter,
+            "update_P0": update_P0,
+            "coeff_method": coeff_method,
+            "counterfactual": "same fitted model, selected climate driver set to raw 0",
+        }
+        fc["setting"] = (
+            f"{'+'.join(exo_vars)} | lag{gp.lags} | KF | coeff={coeff_method} | "
+            f"EM={max_em_iter} | P0={'EM' if update_P0 else 'init'}"
+        )
+
+        src_path = source_dir / f"{country}.pkl"
+        if src_path.exists():
+            country_bundle = _load_core_country_bundle(src_path)
+        else:
+            country_bundle = {
+                "format": "core_country_forecast_v1",
+                "country": country,
+                "source_pickle": str(FORECAST_PICKLE_PATH),
+                "source_format": None,
+                "source_active_scenario": "approved",
+                "forecasts": {},
+            }
+        forecasts = dict(country_bundle.get("forecasts") or {})
+        forecasts["approved"] = fc
+        country_bundle["format"] = "core_country_forecast_v1"
+        country_bundle["country"] = country
+        country_bundle["forecasts"] = forecasts
+        country_bundle["source_active_scenario"] = "approved"
+
+        out_path = output_dir / f"{country}.pkl"
+        with out_path.open("wb") as f:
+            pickle.dump(country_bundle, f, protocol=pickle.HIGHEST_PROTOCOL)
+        out[country] = fc
+        print(
+            f"[OK] {country}: {fc['setting']} steps={len(fc['fc_quarters'])} "
+            f"ragged={bool(fc.get('ragged_edge_init'))}"
+        )
+
+    return out
 
 
 def _plot_bundle_all_charts(bundle: dict, *, scenario: str | None = None) -> None:

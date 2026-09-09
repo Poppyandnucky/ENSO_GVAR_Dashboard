@@ -89,7 +89,7 @@ DISPLAY_VARS = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
 
 # Keep False while diagnosing. When True, the current fitted result replaces the
 # selected scenario in Dash_Input/country_forecasts/{COUNTRY}.pkl.
-SAVE_COUNTRY_PICKLE = True
+SAVE_COUNTRY_PICKLE = False
 
 
 EXPORT_SCENARIO = "approved"
