@@ -32,14 +32,13 @@ import gvar_kf_forecast as gkf  # noqa: E402
 
 
 def _activate_interactive_backend() -> None:
-    """Use a GUI backend for this manual diagnostic script when available."""
+    """Use a GUI backend for this manual script when one is available."""
     if os.environ.get("COUNTRY_DIAG_NONINTERACTIVE") == "1":
         return
     import matplotlib.pyplot as _plt
 
     if "agg" not in matplotlib.get_backend().lower():
         return
-
     preferred = os.environ.get("COUNTRY_DIAG_MPL_BACKEND")
     candidates = [preferred] if preferred else ["MacOSX", "TkAgg", "QtAgg"]
     for backend in candidates:
@@ -60,30 +59,28 @@ import matplotlib.pyplot as plt
 # Manual configuration
 # ============================================================================
 
-COUNTRY = "THA"
+COUNTRY = "PHL"
 CONFIG = {
-    "data_vintage": "new",
-    "external_variables": ["HeatDryF"],
+    "data_vintage": "old",
+    "external_variables": ["HeatDry", "OIL_YoY"],
     "drop_last_n": 0,
-    "append_new_n": 0,  # rows appended before fitting, matching baseline/intervention semantics
+    "append_new_n": 1,  # rows appended before fitting, matching baseline/intervention semantics
 }
 COEFF_METHOD = "last"  # "last", "avg4", or "avg8"
 
-MAX_EM_ITER = 8
+MAX_EM_ITER = 10
 EM_DAMPING = 0.1
-P0_SCALE = 0.1
-P0_FIXED = False
+P0_SCALE = 0.01
+P0_FIXED = True
 Q0_SCALE = 0.1
 Q0_FIXED = False
-R0_SCALE = 1
+R0_SCALE = 2.0
 R0_FIXED = False
 
-# Separate from coefficient fitting. When enabled, the fitted coefficients are
-# kept fixed, then the forecast state is advanced through newer partially
-# observed quarters using actual GDP/CPI/FX/EX values where available and model
-# predictions only where a variable is missing.
-USE_OBSERVED_FORWARD_INIT = True
-OBSERVED_FORWARD_PANEL_VINTAGE = "new"  # "new" uses the latest panel observations
+# Separate from CONFIG["append_new_n"]. The current forecast module supports
+# this only as off/on: 0 disables ragged initialization, any positive value
+# enables it using the module's configured source panel.
+FORECAST_INIT_APPEND_NEW_N = 1
 
 DISPLAY_VARS = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
 
@@ -95,13 +92,6 @@ SAVE_COUNTRY_PICKLE = False
 EXPORT_SCENARIO = "approved"
 COUNTRY_FORECAST_DIR = ROOT / "Dash_Input" / "country_forecasts"
 LARGE_FORECAST_PICKLE = ROOT / "Dash_Input" / "gvar_forecast_results.pkl"
-
-
-def _panel_path(vintage: str) -> Path:
-    paths = {"old": bid.OLD_PANEL, "new": bid.NEW_PANEL}
-    if vintage not in paths:
-        raise ValueError(f"Unknown panel vintage={vintage!r}; expected old or new.")
-    return paths[vintage]
 
 
 def _set_bid_globals(country: str) -> None:
@@ -187,10 +177,7 @@ def run_forecast(country: str = COUNTRY, config: dict = CONFIG, coeff_method: st
 
     exo_fc = _build_forecast_exog(country, prep.exo_use)
     previous_ragged_init = bool(gkf.RAGGED_EDGE_FORECAST_INIT)
-    previous_panel_path = gkf.gp.PATH
-    gkf.RAGGED_EDGE_FORECAST_INIT = bool(USE_OBSERVED_FORWARD_INIT)
-    if USE_OBSERVED_FORWARD_INIT:
-        gkf.gp.PATH = str(_panel_path(OBSERVED_FORWARD_PANEL_VINTAGE))
+    gkf.RAGGED_EDGE_FORECAST_INIT = int(FORECAST_INIT_APPEND_NEW_N) > 0
     try:
         fc = gkf.forecast_country_from_em(
             _prep_dict(prep),
@@ -201,7 +188,6 @@ def run_forecast(country: str = COUNTRY, config: dict = CONFIG, coeff_method: st
         )
     finally:
         gkf.RAGGED_EDGE_FORECAST_INIT = previous_ragged_init
-        gkf.gp.PATH = previous_panel_path
     if fc is None:
         raise RuntimeError(f"No forecast returned for {country}")
     return prep, res, _apply_coeff_method(fc, coeff_method)
@@ -220,7 +206,6 @@ def _history_frame(prep: bid.PreparedRun, country: str, var: str, fc: dict | Non
                 "value": np.asarray(fc["hist_y_raw"], dtype=float)[:, j],
             }
         ).dropna(subset=["quarter", "value"])
-
     panel = prep.g.copy()
     if var not in panel.columns:
         return pd.DataFrame(columns=["quarter", "value"])
@@ -232,7 +217,7 @@ def _history_frame(prep: bid.PreparedRun, country: str, var: str, fc: dict | Non
     ).dropna(subset=["quarter", "value"])
 
 
-def plot_dashboard_like_forecast(prep: bid.PreparedRun, fc: dict, country: str = COUNTRY) -> None:
+def plot_dashboard_like_forecast(prep: bid.PreparedRun, fc: dict, country: str = COUNTRY):
     endo = list(fc["ENDO_use"])
     vars_use = [v for v in DISPLAY_VARS if v in endo]
     quarters = pd.to_datetime(fc["fc_quarters"])
@@ -270,6 +255,7 @@ def plot_dashboard_like_forecast(prep: bid.PreparedRun, fc: dict, country: str =
         y=0.995,
     )
     fig.tight_layout()
+    return fig
 
 
 def print_summary(fc: dict) -> None:
@@ -322,8 +308,7 @@ def save_country_pickle(fc: dict, country: str = COUNTRY, scenario: str = EXPORT
     export_fc["scenario_name"] = scenario
     export_fc["manual_config"] = dict(CONFIG)
     export_fc["selected_coeff_method"] = fc.get("selected_coeff_method", COEFF_METHOD)
-    export_fc["use_observed_forward_init"] = bool(USE_OBSERVED_FORWARD_INIT)
-    export_fc["observed_forward_panel_vintage"] = OBSERVED_FORWARD_PANEL_VINTAGE
+    export_fc["forecast_init_append_new_n"] = int(FORECAST_INIT_APPEND_NEW_N)
 
     forecasts = dict(country_bundle.get("forecasts") or {})
     forecasts[scenario] = export_fc
@@ -339,8 +324,14 @@ def save_country_pickle(fc: dict, country: str = COUNTRY, scenario: str = EXPORT
 if __name__ == "__main__":
     prep_, res_, fc_ = run_forecast()
     print_summary(fc_)
-    plot_dashboard_like_forecast(prep_, fc_)
+    fig_ = plot_dashboard_like_forecast(prep_, fc_)
     if SAVE_COUNTRY_PICKLE:
         saved_path = save_country_pickle(fc_)
         print(f"Saved dashboard country pickle: {saved_path}")
-    plt.show()
+    if "agg" in matplotlib.get_backend().lower():
+        out_path = DIAG_DIR / "output" / f"country_diag_{COUNTRY}.png"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        fig_.savefig(out_path, dpi=160, bbox_inches="tight")
+        print(f"Matplotlib backend is non-interactive ({matplotlib.get_backend()}); saved plot to: {out_path}")
+    else:
+        plt.show()
