@@ -60,11 +60,11 @@ import matplotlib.pyplot as plt
 # Manual configuration
 # ============================================================================
 
-COUNTRY = "PHL"
+COUNTRY = "THA"
 CONFIG = {
     "data_vintage": "new",
     "external_variables": ["HeatDryF"],
-    "drop_last_n": 1,
+    "drop_last_n": 0,
     "append_new_n": 0,  # rows appended before fitting, matching baseline/intervention semantics
 }
 COEFF_METHOD = "last"  # "last", "avg4", or "avg8"
@@ -73,26 +73,35 @@ MAX_EM_ITER = 8
 EM_DAMPING = 0.1
 P0_SCALE = 0.1
 P0_FIXED = False
-Q0_SCALE = 0.5
+Q0_SCALE = 0.1
 Q0_FIXED = False
-R0_SCALE = 2.0
+R0_SCALE = 1
 R0_FIXED = False
 
-# Separate from CONFIG["append_new_n"]. The current forecast module supports
-# this only as off/on: 0 disables ragged initialization, any positive value
-# enables it using the module's configured source panel.
-FORECAST_INIT_APPEND_NEW_N = 0
+# Separate from coefficient fitting. When enabled, the fitted coefficients are
+# kept fixed, then the forecast state is advanced through newer partially
+# observed quarters using actual GDP/CPI/FX/EX values where available and model
+# predictions only where a variable is missing.
+USE_OBSERVED_FORWARD_INIT = True
+OBSERVED_FORWARD_PANEL_VINTAGE = "new"  # "new" uses the latest panel observations
 
 DISPLAY_VARS = ["GDP_YoY", "CPI_YoY", "FX_YoY", "EX_YoY"]
 
 # Keep False while diagnosing. When True, the current fitted result replaces the
 # selected scenario in Dash_Input/country_forecasts/{COUNTRY}.pkl.
-SAVE_COUNTRY_PICKLE = True 
+SAVE_COUNTRY_PICKLE = True
 
 
 EXPORT_SCENARIO = "approved"
 COUNTRY_FORECAST_DIR = ROOT / "Dash_Input" / "country_forecasts"
 LARGE_FORECAST_PICKLE = ROOT / "Dash_Input" / "gvar_forecast_results.pkl"
+
+
+def _panel_path(vintage: str) -> Path:
+    paths = {"old": bid.OLD_PANEL, "new": bid.NEW_PANEL}
+    if vintage not in paths:
+        raise ValueError(f"Unknown panel vintage={vintage!r}; expected old or new.")
+    return paths[vintage]
 
 
 def _set_bid_globals(country: str) -> None:
@@ -178,7 +187,10 @@ def run_forecast(country: str = COUNTRY, config: dict = CONFIG, coeff_method: st
 
     exo_fc = _build_forecast_exog(country, prep.exo_use)
     previous_ragged_init = bool(gkf.RAGGED_EDGE_FORECAST_INIT)
-    gkf.RAGGED_EDGE_FORECAST_INIT = int(FORECAST_INIT_APPEND_NEW_N) > 0
+    previous_panel_path = gkf.gp.PATH
+    gkf.RAGGED_EDGE_FORECAST_INIT = bool(USE_OBSERVED_FORWARD_INIT)
+    if USE_OBSERVED_FORWARD_INIT:
+        gkf.gp.PATH = str(_panel_path(OBSERVED_FORWARD_PANEL_VINTAGE))
     try:
         fc = gkf.forecast_country_from_em(
             _prep_dict(prep),
@@ -189,6 +201,7 @@ def run_forecast(country: str = COUNTRY, config: dict = CONFIG, coeff_method: st
         )
     finally:
         gkf.RAGGED_EDGE_FORECAST_INIT = previous_ragged_init
+        gkf.gp.PATH = previous_panel_path
     if fc is None:
         raise RuntimeError(f"No forecast returned for {country}")
     return prep, res, _apply_coeff_method(fc, coeff_method)
@@ -198,7 +211,16 @@ def _raw_y(fc: dict, arr) -> np.ndarray:
     return np.asarray(arr, dtype=float) * np.asarray(fc["y_sd"]) + np.asarray(fc["y_mu"])
 
 
-def _history_frame(prep: bid.PreparedRun, country: str, var: str) -> pd.DataFrame:
+def _history_frame(prep: bid.PreparedRun, country: str, var: str, fc: dict | None = None) -> pd.DataFrame:
+    if fc is not None and var in list(fc.get("ENDO_use", [])) and fc.get("hist_y_raw") is not None:
+        j = list(fc["ENDO_use"]).index(var)
+        return pd.DataFrame(
+            {
+                "quarter": pd.to_datetime(fc.get("hist_quarters", []), errors="coerce"),
+                "value": np.asarray(fc["hist_y_raw"], dtype=float)[:, j],
+            }
+        ).dropna(subset=["quarter", "value"])
+
     panel = prep.g.copy()
     if var not in panel.columns:
         return pd.DataFrame(columns=["quarter", "value"])
@@ -231,9 +253,9 @@ def plot_dashboard_like_forecast(prep: bid.PreparedRun, fc: dict, country: str =
     axes = np.atleast_1d(axes)
     for ax, var in zip(axes, vars_use):
         j = endo.index(var)
-        hist = _history_frame(prep, country, var)
+        hist = _history_frame(prep, country, var, fc)
         if not hist.empty:
-            ax.plot(hist["quarter"], hist["value"], color="#555555", linewidth=1.4, label="history")
+            ax.plot(hist["quarter"], hist["value"], color="#555555", linewidth=1.4, label="observed/completed history")
         ax.plot(quarters, y[:, j], color="C0", marker="o", linewidth=1.8, label="forecast")
         if y_lower is not None and y_upper is not None:
             ax.fill_between(quarters, y_lower[:, j], y_upper[:, j], color="C0", alpha=0.16, label="95% CI")
@@ -300,7 +322,8 @@ def save_country_pickle(fc: dict, country: str = COUNTRY, scenario: str = EXPORT
     export_fc["scenario_name"] = scenario
     export_fc["manual_config"] = dict(CONFIG)
     export_fc["selected_coeff_method"] = fc.get("selected_coeff_method", COEFF_METHOD)
-    export_fc["forecast_init_append_new_n"] = int(FORECAST_INIT_APPEND_NEW_N)
+    export_fc["use_observed_forward_init"] = bool(USE_OBSERVED_FORWARD_INIT)
+    export_fc["observed_forward_panel_vintage"] = OBSERVED_FORWARD_PANEL_VINTAGE
 
     forecasts = dict(country_bundle.get("forecasts") or {})
     forecasts[scenario] = export_fc
