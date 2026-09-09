@@ -1475,38 +1475,57 @@ def plot_enso_forecast_online(forecast_bundle, panel_df, plot_start=pd.Timestamp
     source = climate.set_index("quarter")["source"].astype(str).reindex(mean.index)
     forecast_mask = source.str.startswith("forecast", na=False)
     first_forecast_q = mean.index[forecast_mask][0] if forecast_mask.any() else None
+    hist = mean.loc[~forecast_mask]
+    fc = mean.loc[forecast_mask]
+    fc_lower = lower.loc[forecast_mask]
+    fc_upper = upper.loc[forecast_mask]
+    fc_line = fc
+    if not hist.empty and not fc.empty:
+        fc_line = pd.concat([hist.iloc[[-1]], fc])
 
     fig = go.Figure()
-    if lower.notna().any() and upper.notna().any():
+    if fc_lower.notna().any() and fc_upper.notna().any():
         fig.add_trace(
             go.Scatter(
-                x=list(mean.index) + list(mean.index[::-1]),
-                y=list(upper) + list(lower[::-1]),
+                x=list(fc.index) + list(fc.index[::-1]),
+                y=list(fc_upper) + list(fc_lower[::-1]),
                 fill="toself",
-                fillcolor="rgba(31, 119, 180, 0.14)",
+                fillcolor="rgba(255, 127, 14, 0.18)",
                 line=dict(color="rgba(255,255,255,0)"),
                 hoverinfo="skip",
-                name="ENSO 95% interval",
+                name="Forecasted RONI 95% interval",
                 showlegend=True,
             )
         )
 
-    fig.add_trace(
-        go.Scatter(
-            x=mean.index,
-            y=mean,
-            mode="lines",
-            name="ENSO path",
-            line=dict(color="#1f77b4", width=2),
-            hovertemplate="ENSO path<br>%{x|%Y-Q%q}<br>ENSO: %{y:.2f}<extra></extra>",
+    if not hist.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=hist.index,
+                y=hist,
+                mode="lines",
+                name="Observed RONI",
+                line=dict(color="#1f77b4", width=2),
+                hovertemplate="Observed RONI<br>%{x|%Y-Q%q}<br>RONI: %{y:.2f}<extra></extra>",
+            )
         )
-    )
+    if not fc.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=fc_line.index,
+                y=fc_line,
+                mode="lines",
+                name="Forecasted RONI",
+                line=dict(color="#ff7f0e", width=2.5),
+                hovertemplate="Forecasted RONI<br>%{x|%Y-Q%q}<br>RONI: %{y:.2f}<extra></extra>",
+            )
+        )
     if first_forecast_q is not None:
         fig.add_vline(x=first_forecast_q, line_dash="dash", line_color="#888888", opacity=0.7)
     fig.update_layout(
-        title="ENSO path from ENSO_climate_total",
+        title="RONI path from ENSO_climate_total",
         xaxis_title="Quarter",
-        yaxis_title="ENSO",
+        yaxis_title="RONI",
         legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="left", x=0),
         margin=dict(l=20, r=20, t=70, b=100),
         height=420,
@@ -3488,15 +3507,6 @@ with tab_structural_break:
         st.info(
             f"No structural-break artifacts are available for {iso3_to_label(country)}."
         )
-    use_llm_overlay = st.checkbox(
-        "Overlay Gemini identified break years as dotted lines",
-        value=False,
-        key="sb_use_llm_overlay",
-        help=HELP_TEXT["llm_overlay"],
-    )
-
-    st_subheader("1) Structural break scores")
-
     def _model_break_scores_from_offline(iso3):
         d = offline_per_country.get(iso3)
         if not isinstance(d, dict):
@@ -3571,95 +3581,7 @@ with tab_structural_break:
                 return bdf, "quarterly"
         return pd.DataFrame(), "none"
 
-    for iso3 in sb_countries:
-        df_sc, freq_mode = _country_break_scores(iso3)
-        st.markdown(f"**{iso3_to_label(iso3)}**")
-        if df_sc.empty:
-            st.warning("No structural-break score data available.")
-            continue
-
-        if freq_mode == "quarterly":
-            score_cols = [
-                c
-                for c in [
-                    "innovation_score",
-                    "coefficient_change",
-                    "filter_smoother_gap",
-                ]
-                if c in df_sc.columns
-            ]
-            x_col = "quarter" if "quarter" in df_sc.columns else None
-        else:
-            score_cols = [
-                c
-                for c in [
-                    "llm_break_supported_score",
-                    "llm_confidence_score",
-                    "llm_joint_score",
-                ]
-                if c in df_sc.columns
-            ]
-            x_col = "year"
-
-        if not score_cols or x_col is None:
-            st.warning("Score columns unavailable for plotting.")
-            continue
-
-        score_pick = st.multiselect(
-            f"Score series ({iso3_to_label(iso3)})",
-            options=score_cols,
-            default=score_cols[:3],
-            key=f"sb_score_pick_{iso3}",
-            help=HELP_TEXT["score_series"],
-        )
-        if not score_pick:
-            st.info("Select at least one score series.")
-            continue
-
-        plot_df = df_sc[[x_col] + score_pick].copy()
-        if x_col == "quarter":
-            plot_df = plot_df.dropna(subset=[x_col]).sort_values(x_col)
-        else:
-            plot_df = plot_df.dropna(subset=[x_col]).sort_values(x_col)
-
-        fig_sb = px.line(
-            plot_df.melt(id_vars=[x_col], value_vars=score_pick, var_name="series", value_name="value"),
-            x=x_col,
-            y="value",
-            color="series",
-            markers=True,
-            title=f"{iso3_to_label(iso3)}: structural break score series (model diagnostics)",
-        )
-
-        enso_background_added = add_enso_intensity_background(fig_sb, panel, plot_df, x_col)
-        if enso_background_added:
-            st.caption(
-                "Background shading shows historical ENSO intensity from the panel series: "
-                "red is positive, blue is negative, and near-zero values are transparent. "
-                "Quarterly charts use quarterly ENSO; annual charts use calendar-year mean ENSO."
-            )
-
-        if use_llm_overlay and not llm_overlay_df.empty:
-            ov = llm_overlay_df[
-                (llm_overlay_df["iso3"] == iso3)
-                & (pd.to_numeric(llm_overlay_df["break_supported"], errors="coerce") == 1)
-                & (llm_overlay_df["year"].notna())
-            ]
-            for yr in sorted(set(ov["year"].astype(int))):
-                if x_col == "quarter":
-                    fig_sb.add_vline(
-                        x=pd.Timestamp(year=int(yr), month=7, day=1),
-                        line_dash="dot",
-                        line_color="goldenrod",
-                        opacity=0.8,
-                    )
-                else:
-                    fig_sb.add_vline(x=int(yr), line_dash="dot", line_color="goldenrod")
-
-        fig_sb.update_layout(margin=dict(l=20, r=90, t=60, b=45))
-        render_plotly_chart(fig_sb, width="stretch")
-
-    st_subheader("2) World Bank document information")
+    st_subheader("1) World Bank document information")
     if wb_top4_df.empty:
         st.warning("`structural_break/wb_top4.csv` not found or empty.")
     else:
@@ -3703,7 +3625,7 @@ with tab_structural_break:
                         st.markdown("**Abstract**")
                         st.write(str(row.get("abstract_text", "")))
 
-    st_subheader("3) Documentary evidence and AI-assisted interpretation")
+    st_subheader("2) Documentary evidence and AI-assisted interpretation")
     if llm_overlay_df.empty:
         st.warning("No Gemini / LLM output table in pickle or under `structural_break/gemini output/`.")
     else:
@@ -3765,7 +3687,7 @@ with tab_structural_break:
                 .format(precision=2, na_rep="—")
             )
 
-    st_subheader("3.1) Observed impact vs model surprise overlap")
+    st_subheader("2.1) Observed impact vs model surprise overlap")
     st.caption(
         "Observed impact uses percentile-ranked macro changes. Model surprise uses the existing "
         "pickle break diagnostics, preferring composite score and falling back to innovation score. "
@@ -3902,7 +3824,7 @@ with tab_structural_break:
     #             )
     #             st.plotly_chart(fig_refit_enso, width="stretch")
 
-    st_subheader("4) Global structural-break map by year")
+    st_subheader("3) Global structural-break map by year")
     st.caption(
         "This map shows candidate structural-break locations for the selected year. Dot size reflects "
         "the strength of the break signal. Colors distinguish general structural breaks from potential "
